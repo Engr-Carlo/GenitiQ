@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ========================================
+// Enums
+// ========================================
+
+enum UserRole {
+  INSPECTOR
+  OPERATOR
+  QA_QC
+  ADMIN
+}
+
+enum MachineType {
+  VMM
+  CMM
+}
+
+enum MachineStatus {
+  ACTIVE
+  IDLE
+  MAINTENANCE
+  SHUTDOWN
+}
+
+enum PartStatus {
+  PENDING
+  QUEUED
+  IN_INSPECTION
+  ACCEPTED
+  REJECTED
+  FOR_REVIEW
+  SCRAPPED
+}
+
+enum InspectionResult {
+  ACCEPTED
+  REJECTED
+}
+
+enum QADecision {
+  APPROVED
+  OVERRIDE_ACCEPT
+  OVERRIDE_REJECT
+  RE_INSPECT
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum QueueItemStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+// ========================================
+// Models
+// ========================================
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  name       String
+  role       UserRole @default(INSPECTOR)
+  department String?
+  position   String?
+  accountId  String   @unique
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  inspections       Inspection[]  @relation("InspectorInspections")
+  qaReviews         Inspection[]  @relation("QAReviewerInspections")
+  machineReports    MachineReport[]
+  shutdownEvents    ShutdownEvent[]
+  auditLogs         AuditLog[]
+  gaConfigUpdates   GAConfiguration[] @relation("GAConfigUpdater")
+
+  @@index([email])
+  @@index([role])
+  @@index([accountId])
+}
+
+model Machine {
+  id             String        @id @default(cuid())
+  name           String        @unique
+  type           MachineType
+  status         MachineStatus @default(ACTIVE)
+  location       String?
+  specifications Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  inspections      Inspection[]
+  inspectionQueues InspectionQueue[]
+  machineReports   MachineReport[]
+  shutdownEvents   ShutdownEvent[]
+
+  @@index([status])
+  @@index([type])
+}
+
+model Part {
+  id              String     @id @default(cuid())
+  partNumber      String     @unique
+  name            String?
+  description     String?
+  status          PartStatus @default(PENDING)
+  currentMachineId String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  inspections      Inspection[]
+  inspectionQueues InspectionQueue[]
+
+  @@index([status])
+  @@index([partNumber])
+}
+
+model Inspection {
+  id              String            @id @default(cuid())
+  partId          String
+  part            Part              @relation(fields: [partId], references: [id])
+  inspectorId     String
+  inspector       User              @relation("InspectorInspections", fields: [inspectorId], references: [id])
+  machineId       String
+  machine         Machine           @relation(fields: [machineId], references: [id])
+  result          InspectionResult
+  measurements    Json?
+  notes           String?
+  qaReviewerId    String?
+  qaReviewer      User?             @relation("QAReviewerInspections", fields: [qaReviewerId], references: [id])
+  qaDecision      QADecision?
+  qaJustification String?
+  qaReviewedAt    DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([partId])
+  @@index([inspectorId])
+  @@index([machineId])
+  @@index([result])
+  @@index([createdAt])
+}
+
+model InspectionQueue {
+  id            String          @id @default(cuid())
+  partId        String
+  part          Part            @relation(fields: [partId], references: [id])
+  machineId     String
+  machine       Machine         @relation(fields: [machineId], references: [id])
+  priority      Priority        @default(MEDIUM)
+  position      Int             @default(0)
+  estimatedTime Int             @default(15)
+  status        QueueItemStatus @default(WAITING)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([machineId])
+  @@index([status])
+  @@index([priority])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  details   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([action])
+}
+
+model MachineReport {
+  id           String   @id @default(cuid())
+  machineId    String
+  machine      Machine  @relation(fields: [machineId], references: [id])
+  reportedById String
+  reportedBy   User     @relation(fields: [reportedById], references: [id])
+  reason       String
+  status       String   @default("Pending")
+  createdAt    DateTime @default(now())
+
+  @@index([machineId])
+  @@index([createdAt])
+}
+
+model ShutdownEvent {
+  id            String    @id @default(cuid())
+  machineId     String
+  machine       Machine   @relation(fields: [machineId], references: [id])
+  reason        String
+  initiatedById String
+  initiatedBy   User      @relation(fields: [initiatedById], references: [id])
+  startTime     DateTime  @default(now())
+  endTime       DateTime?
+
+  @@index([machineId])
+  @@index([startTime])
+}
+
+model GAConfiguration {
+  id                String   @id @default(cuid())
+  populationSize    Int      @default(50)
+  generations       Int      @default(100)
+  crossoverRate     Float    @default(0.8)
+  mutationRate      Float    @default(0.15)
+  elitismCount      Int      @default(2)
+  waitTimeWeight    Float    @default(0.4)
+  utilizationWeight Float    @default(0.3)
+  priorityWeight    Float    @default(0.3)
+  isActive          Boolean  @default(true)
+  updatedById       String?
+  updatedBy         User?    @relation("GAConfigUpdater", fields: [updatedById], references: [id])
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+}
