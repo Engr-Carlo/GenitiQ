@@ -84,17 +84,18 @@ async function main() {
 
   // Create GA Configuration
   await prisma.gAConfiguration.upsert({
-    where: { id: 1 },
+    where: { id: "default-config" },
     update: {},
     create: {
-      id: 1,
+      id: "default-config",
       populationSize: 50,
       generations: 100,
       mutationRate: 0.01,
       crossoverRate: 0.7,
       elitismCount: 2,
-      targetUtilization: 85.0,
-      targetDefectRate: 2.0,
+      waitTimeWeight: 0.4,
+      utilizationWeight: 0.3,
+      priorityWeight: 0.3,
     },
   });
 
