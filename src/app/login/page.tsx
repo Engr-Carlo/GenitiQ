@@ -80,22 +80,28 @@ export default function LoginPage() {
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
             <Input
+              id="email"
+              name="email"
               type="email"
               placeholder="Work Email Address"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               icon={<Mail size={18} />}
               required
+              autoComplete="email"
             />
 
             <div className="relative">
               <Input
+                id="password"
+                name="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 icon={<Lock size={18} />}
                 required
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -109,6 +115,8 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
+                  id="rememberMe"
+                  name="rememberMe"
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
