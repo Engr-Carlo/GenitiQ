@@ -7,7 +7,7 @@ import { UserRole } from "@/types";
 // POST /api/machines/[id]/report — Operator reports machine for shutdown
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,7 +16,7 @@ export async function POST(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id: machineId } = params;
+  const { id: machineId } = await context.params;
   const { reason, requestShutdown } = await req.json();
 
   if (!reason || typeof reason !== "string") {
