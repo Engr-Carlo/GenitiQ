@@ -62,6 +62,7 @@ export async function runGAOptimization(
       waitTime: dbConfig?.waitTimeWeight ?? DEFAULT_GA_CONFIG.weights.waitTime,
       utilization: dbConfig?.utilizationWeight ?? DEFAULT_GA_CONFIG.weights.utilization,
       priority: dbConfig?.priorityWeight ?? DEFAULT_GA_CONFIG.weights.priority,
+      sessionAvailability: DEFAULT_GA_CONFIG.weights.sessionAvailability,
     },
   };
 
