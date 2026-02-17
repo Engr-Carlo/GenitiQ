@@ -56,7 +56,7 @@ export class GeneticQueueOptimizer {
     if (this.parts.length === 0 || this.machines.length === 0) {
       return {
         bestChromosome: { genes: [], fitness: 0 },
-        fitness: { total: 0, waitTimeScore: 0, utilizationScore: 0, priorityScore: 0 },
+        fitness: { total: 0, waitTimeScore: 0, utilizationScore: 0, priorityScore: 0, sessionScore: 0 },
         generations: 0,
       };
     }
