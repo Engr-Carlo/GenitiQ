@@ -61,13 +61,14 @@ export async function GET(req: NextRequest) {
 
   // For operators: only show their own machine session details
   if (session.user.role === "OPERATOR") {
-    result = result.map((m) => ({
-      ...m,
-      // Operators can see their own session but not others'
-      currentOperator: m.currentSession?.operatorId === session.user.id ? m.currentOperator : null,
-      // Only show status of their own machine
-      status: m.currentSession?.operatorId === session.user.id ? m.status : m.status,
-    }));
+    result = result.map((m) => {
+      const isOwnMachine = m.currentSession?.operatorId === session.user.id;
+      return {
+        ...m,
+        // Operators can see their own session but not others'
+        currentOperator: isOwnMachine ? m.currentOperator : null,
+      } as typeof m;
+    });
   }
 
   return NextResponse.json({ data: result });
