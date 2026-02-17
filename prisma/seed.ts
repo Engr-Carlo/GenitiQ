@@ -168,14 +168,15 @@ async function main() {
           partNumber: pn,
           name: `Component ${pn}`,
           description: `Test component for inspection`,
-          status: i < 10 ? "QUEUED" : i < 20 ? "IN_INSPECTION" : "ACCEPTED",
+          status: i < 10 ? "QUEUED" : i < 20 ? "IN_INSPECTION" : i < 23 ? "FOR_REVIEW" : "ACCEPTED",
           currentMachineId: i < 10 ? machines[i % machines.length].id : null,
+          barcodeData: `BC-${pn}-${String(Math.floor(10000 + Math.random() * 90000))}`,
         },
       })
     )
   );
 
-  console.log(`✅ Created ${parts.length} parts`);
+  console.log(`✅ Created ${parts.length} parts (with barcodes)`);
 
   // ──────────────────────────────────────────────
   // 4. Queue items (first 10 parts)
@@ -184,21 +185,33 @@ async function main() {
   const activeMachines = machines.filter((m) => m.status === "ACTIVE");
 
   const queueItems = await Promise.all(
-    parts.slice(0, 10).map((part, i) =>
-      prisma.inspectionQueue.create({
+    parts.slice(0, 10).map((part, i) => {
+      const now = Date.now();
+      // Make some items COMPLETED with timing data for historical analytics
+      const isCompleted = i >= 7;
+      const startOffset = (10 - i) * 3600000; // hours ago
+      const duration = 10 + Math.floor(Math.random() * 15); // 10-25 min
+
+      return prisma.inspectionQueue.create({
         data: {
           partId: part.id,
           machineId: activeMachines[i % activeMachines.length].id,
           priority: priorities[i % 3],
           position: Math.floor(i / activeMachines.length) + 1,
           estimatedTime: 10 + Math.floor(Math.random() * 20),
-          status: "WAITING",
+          status: isCompleted ? "COMPLETED" : "WAITING",
+          scannedAt: isCompleted ? new Date(now - startOffset) : null,
+          scannedBarcode: isCompleted ? part.barcodeData : null,
+          queueStartedAt: isCompleted ? new Date(now - startOffset) : null,
+          queueCompletedAt: isCompleted ? new Date(now - startOffset + duration * 60000) : null,
+          queueActualTime: isCompleted ? duration : null,
+          assignedOperatorId: isCompleted ? users[3].id : null,
         },
-      })
-    )
+      });
+    })
   );
 
-  console.log(`✅ Created ${queueItems.length} queue items`);
+  console.log(`✅ Created ${queueItems.length} queue items (with timing data)`);
 
   // ──────────────────────────────────────────────
   // 5. Sample inspections (last 10 parts)
@@ -207,21 +220,41 @@ async function main() {
                     "ACCEPTED", "ACCEPTED", "ACCEPTED", "REJECTED", "ACCEPTED"] as const;
 
   const inspections = await Promise.all(
-    parts.slice(20).map((part, i) =>
-      prisma.inspection.create({
+    parts.slice(20).map((part, i) => {
+      const dayOffset = (10 - i) * 24 * 60 * 60 * 1000;
+      const createdAt = new Date(Date.now() - dayOffset);
+      const opDuration = 8 + Math.floor(Math.random() * 20); // 8-28 min
+      const revDuration = 2 + Math.floor(Math.random() * 8); // 2-10 min
+      const hasQA = i < 7; // First 7 have QA decisions
+
+      return prisma.inspection.create({
         data: {
           partId: part.id,
           machineId: machines[i % machines.length].id,
-          inspectorId: users[1].id, // inspector1
+          inspectorId: users[3].id, // operator1 did the initial inspection
           result: results[i],
           notes: results[i] === "REJECTED" ? "Dimensional deviation detected" : "Within tolerance",
-          createdAt: new Date(Date.now() - (10 - i) * 24 * 60 * 60 * 1000), // spread over last 10 days
+          createdAt,
+          operatorStartedAt: new Date(createdAt.getTime() - opDuration * 60000),
+          operatorCompletedAt: createdAt,
+          operatorActualTime: opDuration,
+          scannedBarcode: part.barcodeData,
+          // Inspector review data
+          inspectionStartedAt: hasQA ? new Date(createdAt.getTime() + 600000) : null,
+          inspectionCompletedAt: hasQA ? new Date(createdAt.getTime() + 600000 + revDuration * 60000) : null,
+          inspectionActualTime: hasQA ? revDuration : null,
+          qaDecision: hasQA
+            ? results[i] === "ACCEPTED" ? "APPROVED" : (i % 3 === 0 ? "OVERRIDE_ACCEPT" : "OVERRIDE_REJECT")
+            : null,
+          qaJustification: hasQA
+            ? results[i] === "ACCEPTED" ? "Verified and approved" : (i % 3 === 0 ? "Re-measured, within spec" : "Confirmed reject")
+            : null,
         },
-      })
-    )
+      });
+    })
   );
 
-  console.log(`✅ Created ${inspections.length} inspections`);
+  console.log(`✅ Created ${inspections.length} inspections (with timing + QA data)`);
 
   // ──────────────────────────────────────────────
   // 6. GA Configuration
@@ -247,7 +280,34 @@ async function main() {
   console.log(`✅ Created GA configuration`);
 
   // ──────────────────────────────────────────────
-  // 7. Sample audit logs
+  // 7. Sample Machine Sessions
+  // ──────────────────────────────────────────────
+  const sessionData = [
+    { machineId: machines[0].id, operatorId: users[3].id, hoursAgo: 48, durationMin: 240, items: 14, status: "COMPLETED" as const },
+    { machineId: machines[1].id, operatorId: users[4].id, hoursAgo: 24, durationMin: 180, items: 10, status: "COMPLETED" as const },
+    { machineId: machines[6].id, operatorId: users[3].id, hoursAgo: 12, durationMin: 120, items: 7, status: "COMPLETED" as const },
+  ];
+
+  const sessions = await Promise.all(
+    sessionData.map((s) =>
+      prisma.machineSession.create({
+        data: {
+          machineId: s.machineId,
+          operatorId: s.operatorId,
+          startTime: new Date(Date.now() - s.hoursAgo * 3600000),
+          endTime: new Date(Date.now() - s.hoursAgo * 3600000 + s.durationMin * 60000),
+          status: s.status,
+          itemsCompleted: s.items,
+          notes: `Completed ${s.items} items in ${s.durationMin} min`,
+        },
+      })
+    )
+  );
+
+  console.log(`✅ Created ${sessions.length} sample machine sessions`);
+
+  // ──────────────────────────────────────────────
+  // 8. Sample audit logs
   // ──────────────────────────────────────────────
   await prisma.auditLog.createMany({
     data: [

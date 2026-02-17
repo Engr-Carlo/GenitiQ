@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type"); // VMM or CMM
   const status = searchParams.get("status");
+  const hasActiveSession = searchParams.get("hasActiveSession");
 
   const where: any = {};
   if (type) where.type = type;
@@ -21,16 +22,55 @@ export async function GET(req: NextRequest) {
       _count: {
         select: { inspectionQueues: { where: { status: "WAITING" } } },
       },
+      sessions: {
+        where: { status: "ACTIVE" },
+        include: {
+          operator: { select: { id: true, name: true, accountId: true } },
+        },
+        take: 1,
+      },
     },
     orderBy: { name: "asc" },
   });
 
-  return NextResponse.json({
-    data: machines.map((m) => ({
-      ...m,
+  let result = machines.map((m) => {
+    const activeSession = m.sessions[0] || null;
+    return {
+      id: m.id,
+      name: m.name,
+      type: m.type,
+      status: m.status,
+      location: m.location,
+      specifications: m.specifications,
+      currentSessionId: m.currentSessionId,
+      createdAt: m.createdAt,
+      updatedAt: m.updatedAt,
       queueLength: m._count.inspectionQueues,
-    })),
+      currentSession: activeSession,
+      currentOperator: activeSession?.operator || null,
+      hasActiveSession: !!activeSession,
+    };
   });
+
+  // Filter by active session if requested
+  if (hasActiveSession === "true") {
+    result = result.filter((m) => m.hasActiveSession);
+  } else if (hasActiveSession === "false") {
+    result = result.filter((m) => !m.hasActiveSession);
+  }
+
+  // For operators: only show their own machine session details
+  if (session.user.role === "OPERATOR") {
+    result = result.map((m) => ({
+      ...m,
+      // Operators can see their own session but not others'
+      currentOperator: m.currentSession?.operatorId === session.user.id ? m.currentOperator : null,
+      // Only show status of their own machine
+      status: m.currentSession?.operatorId === session.user.id ? m.status : m.status,
+    }));
+  }
+
+  return NextResponse.json({ data: result });
 }
 
 // POST /api/machines — create a new machine

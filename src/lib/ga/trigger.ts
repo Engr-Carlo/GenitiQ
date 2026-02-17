@@ -27,10 +27,15 @@ export async function runGAOptimization(
 ): Promise<OptimizationResult> {
   const startTime = Date.now();
 
-  // 1. Fetch active machines for this type
+  // 1. Fetch available machines (ACTIVE or IDLE) for this type, with session info
   const machines = await prisma.machine.findMany({
-    where: { type: machineType, status: "ACTIVE" },
-    select: { id: true, name: true, status: true },
+    where: { type: machineType, status: { in: ["ACTIVE", "IDLE"] } },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      currentSessionId: true,
+    },
   });
 
   // 2. Fetch pending queue items
@@ -60,13 +65,23 @@ export async function runGAOptimization(
     },
   };
 
+  // 3b. Fetch historical average times per machine for better estimates
+  const machineTimings = await prisma.inspectionQueue.groupBy({
+    by: ["machineId"],
+    _avg: { queueActualTime: true },
+    where: { queueActualTime: { not: null } },
+  });
+  const timingMap = new Map(machineTimings.map((t) => [t.machineId, t._avg.queueActualTime || 15]));
+
   // 4. Run optimizer
   const optimizer = new GeneticQueueOptimizer(
     gaConfig,
     machines.map((m) => ({
       id: m.id,
-      cycleTime: 15, // default cycle time in minutes
+      cycleTime: timingMap.get(m.id) || 15,
       status: m.status,
+      hasActiveSession: !!m.currentSessionId,
+      avgHistoricalTime: timingMap.get(m.id),
     })),
     queueItems.map((qi) => ({
       id: qi.id,

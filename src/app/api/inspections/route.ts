@@ -19,6 +19,13 @@ export async function GET(req: NextRequest) {
   if (machineId) where.machineId = machineId;
   if (inspectorId) where.inspectorId = inspectorId;
 
+  // Filter for items needing QA review (operator completed, inspector hasn't reviewed)
+  const needsReview = searchParams.get("needsReview");
+  if (needsReview === "true") {
+    where.qaDecision = null;
+    where.operatorCompletedAt = { not: null };
+  }
+
   const [inspections, total] = await Promise.all([
     prisma.inspection.findMany({
       where,
@@ -27,6 +34,9 @@ export async function GET(req: NextRequest) {
         machine: { select: { id: true, name: true, type: true } },
         inspector: { select: { id: true, name: true } },
         qaReviewer: { select: { id: true, name: true } },
+        machineSession: {
+          select: { id: true, operator: { select: { name: true } } },
+        },
       },
       skip: (page - 1) * limit,
       take: limit,

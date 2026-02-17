@@ -28,10 +28,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({ data: machine });
 }
 
-// PATCH /api/machines/[id] — update status, etc.
+// PATCH /api/machines/[id] — update status, etc. (Admin/Inspector only)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (session.user.role === "OPERATOR") {
+    return NextResponse.json({ error: "Operators cannot change machine status directly. Use session checkout/checkin." }, { status: 403 });
+  }
 
   const { id } = await params;
   const body = await req.json();

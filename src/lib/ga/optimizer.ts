@@ -22,9 +22,10 @@ export const DEFAULT_GA_CONFIG: GAConfig = {
   elitismCount: 2,
   tournamentSize: 3,
   weights: {
-    waitTime: 0.4,
-    utilization: 0.3,
-    priority: 0.3,
+    waitTime: 0.35,
+    utilization: 0.25,
+    priority: 0.25,
+    sessionAvailability: 0.15,
   },
 };
 
@@ -34,16 +35,19 @@ export const DEFAULT_GA_CONFIG: GAConfig = {
 
 export class GeneticQueueOptimizer {
   private config: GAConfig;
-  private machines: { id: string; cycleTime: number; status: string }[];
+  private machines: { id: string; cycleTime: number; status: string; hasActiveSession: boolean; avgHistoricalTime?: number }[];
   private parts: { id: string; priority: number; estimatedTime: number }[];
 
   constructor(
     config: Partial<GAConfig>,
-    machines: { id: string; cycleTime: number; status: string }[],
+    machines: { id: string; cycleTime: number; status: string; hasActiveSession?: boolean; avgHistoricalTime?: number }[],
     parts: { id: string; priority: number; estimatedTime: number }[]
   ) {
     this.config = { ...DEFAULT_GA_CONFIG, ...config };
-    this.machines = machines.filter((m) => m.status === "ACTIVE");
+    // Include ACTIVE and IDLE machines (IDLE with session = operator available)
+    this.machines = machines
+      .filter((m) => m.status === "ACTIVE" || m.status === "IDLE")
+      .map((m) => ({ ...m, hasActiveSession: m.hasActiveSession ?? false }));
     this.parts = parts;
   }
 
@@ -150,13 +154,15 @@ export class GeneticQueueOptimizer {
     const waitTimeScore = this.calcWaitTimeScore(chromosome);
     const utilizationScore = this.calcUtilizationScore(chromosome);
     const priorityScore = this.calcPriorityScore(chromosome);
+    const sessionScore = this.calcSessionScore(chromosome);
 
     const total =
       weights.waitTime * waitTimeScore +
       weights.utilization * utilizationScore +
-      weights.priority * priorityScore;
+      weights.priority * priorityScore +
+      (weights.sessionAvailability || 0) * sessionScore;
 
-    return { total, waitTimeScore, utilizationScore, priorityScore };
+    return { total, waitTimeScore, utilizationScore, priorityScore, sessionScore };
   }
 
   private calcWaitTimeScore(chromosome: QueueChromosome): number {
@@ -212,6 +218,22 @@ export class GeneticQueueOptimizer {
     });
 
     return total > 0 ? score / total : 1;
+  }
+
+  private calcSessionScore(chromosome: QueueChromosome): number {
+    // Favor assigning items to machines that have an active operator session
+    if (this.machines.every((m) => !m.hasActiveSession)) return 1; // No sessions, neutral
+
+    let assignedToSession = 0;
+    let total = 0;
+
+    chromosome.genes.forEach((gene) => {
+      const machine = this.machines.find((m) => m.id === gene.machineId);
+      if (machine?.hasActiveSession) assignedToSession++;
+      total++;
+    });
+
+    return total > 0 ? assignedToSession / total : 1;
   }
 
   // -- Selection --

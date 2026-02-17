@@ -13,6 +13,7 @@ export interface GAConfig {
     waitTime: number;
     utilization: number;
     priority: number;
+    sessionAvailability: number;
   };
 }
 
@@ -32,6 +33,7 @@ export interface FitnessResult {
   waitTimeScore: number;
   utilizationScore: number;
   priorityScore: number;
+  sessionScore: number;
 }
 
 export interface OptimizationResult {

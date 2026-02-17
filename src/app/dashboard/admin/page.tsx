@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { DataTable, Badge, LoadingSpinner } from "@/components/ui";
+import { Card, DataTable, Badge, KPICard, LoadingSpinner, Button } from "@/components/ui";
 import {
   DefectRateTrendChart,
   YieldTrendChart,
@@ -12,6 +12,30 @@ import {
   MiniStat,
   BigYieldDisplay,
 } from "@/components/charts";
+import {
+  Cpu, Activity, Users, Clock, Timer,
+  CheckCircle2, AlertTriangle, TrendingUp,
+} from "lucide-react";
+
+// ============================================================
+// Types
+// ============================================================
+
+interface ActiveSession {
+  id: string;
+  operatorName: string;
+  machineName: string;
+  machineType: string;
+  startTime: string;
+  itemsCompleted: number;
+  status: string;
+}
+
+interface TimingData {
+  avgQueueTime: number | null;
+  avgInspectionTime: number | null;
+  totalCycleTime: number | null;
+}
 
 // ============================================================
 // Admin Dashboard Page
@@ -27,32 +51,59 @@ export default function AdminDashboardPage() {
     queuedParts: 0,
   });
   const [recentInspections, setRecentInspections] = useState<any[]>([]);
+  const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
+  const [timing, setTiming] = useState<TimingData>({ avgQueueTime: null, avgInspectionTime: null, totalCycleTime: null });
 
   if (session?.user?.role !== "ADMIN") {
     redirect("/dashboard");
   }
 
   useEffect(() => {
-    fetchAnalytics();
+    fetchData();
   }, []);
 
-  const fetchAnalytics = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/analytics?period=7d");
-      const data = await response.json();
-      
-      if (data.data) {
+      // Fetch analytics + timing in parallel
+      const [analyticsRes, timingRes] = await Promise.all([
+        fetch("/api/analytics?period=7d"),
+        fetch("/api/analytics/timing"),
+      ]);
+
+      const analyticsData = await analyticsRes.json();
+      const timingData = await timingRes.json();
+
+      if (analyticsData.data) {
         setKpis({
-          defectRate: data.data.kpis.defectRate,
-          yieldRate: data.data.kpis.yieldRate,
-          totalInspections: data.data.kpis.totalInspections,
-          queuedParts: data.data.kpis.queuedParts,
+          defectRate: analyticsData.data.kpis.defectRate,
+          yieldRate: analyticsData.data.kpis.yieldRate,
+          totalInspections: analyticsData.data.kpis.totalInspections,
+          queuedParts: analyticsData.data.kpis.queuedParts,
         });
-        setRecentInspections(data.data.recentInspections || []);
+        setRecentInspections(analyticsData.data.recentInspections || []);
+      }
+
+      if (timingData.data) {
+        setTiming({
+          avgQueueTime: timingData.data.summary?.avgQueueTime ?? null,
+          avgInspectionTime: timingData.data.summary?.avgInspectionTime ?? null,
+          totalCycleTime: timingData.data.summary?.totalCycleTime ?? null,
+        });
+        // Map active sessions
+        const sessions: ActiveSession[] = (timingData.data.activeSessions || []).map((s: any) => ({
+          id: s.id,
+          operatorName: s.operator?.name || "-",
+          machineName: s.machine?.name || "-",
+          machineType: s.machine?.type || "-",
+          startTime: s.startTime,
+          itemsCompleted: s.itemsCompleted,
+          status: s.status,
+        }));
+        setActiveSessions(sessions);
       }
     } catch (error) {
-      console.error("Error fetching analytics:", error);
+      console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
     }
@@ -66,7 +117,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // Mock chart data (these would come from analytics API in a full implementation)
+  // Chart data
   const defectRateTrend = [
     { label: "Incoming", value: 2.0 },
     { label: "In-Process", value: 1.1 },
@@ -97,7 +148,7 @@ export default function AdminDashboardPage() {
     { name: "Failed", value: 25, color: "#60a5fa" },
   ];
 
-  const columns = [
+  const inspectionColumns = [
     {
       key: "partNumber",
       header: "Part No.",
@@ -115,18 +166,56 @@ export default function AdminDashboardPage() {
     },
     {
       key: "machineType",
-      header: "Machine Type",
-      render: (item: any) => item.machine?.type || "-",
+      header: "Machine",
+      render: (item: any) => item.machine?.name || item.machine?.type || "-",
     },
-    { 
-      key: "inspector", 
-      header: "Inspector",
+    {
+      key: "inspector",
+      header: "Operator",
       render: (item: any) => item.inspector?.name || "-",
     },
-    { 
-      key: "createdAt", 
+    {
+      key: "qaDecision",
+      header: "QA Decision",
+      render: (item: any) => {
+        if (!item.qaDecision) return <Badge variant="warning">Pending</Badge>;
+        const variant = item.qaDecision === "APPROVED" ? "success" : item.qaDecision === "CONFIRMED_REJECT" ? "danger" : "info";
+        return <Badge variant={variant}>{item.qaDecision.replace("_", " ")}</Badge>;
+      },
+    },
+    {
+      key: "createdAt",
       header: "Date",
       render: (item: any) => new Date(item.createdAt).toLocaleDateString(),
+    },
+  ];
+
+  const sessionColumns = [
+    { key: "operatorName", header: "Operator", className: "font-bold" },
+    { key: "machineName", header: "Machine" },
+    {
+      key: "machineType",
+      header: "Type",
+      render: (item: ActiveSession) => (
+        <Badge variant={item.machineType === "VMM" ? "info" : "warning"}>{item.machineType}</Badge>
+      ),
+    },
+    {
+      key: "startTime",
+      header: "Started",
+      render: (item: ActiveSession) => new Date(item.startTime).toLocaleTimeString(),
+    },
+    {
+      key: "itemsCompleted",
+      header: "Items Done",
+      render: (item: ActiveSession) => <span className="font-bold">{item.itemsCompleted}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item: ActiveSession) => (
+        <Badge variant={item.status === "ACTIVE" ? "success" : "warning"}>{item.status}</Badge>
+      ),
     },
   ];
 
@@ -140,6 +229,42 @@ export default function AdminDashboardPage() {
         <MiniStat title="Total Inspections" value={String(kpis.totalInspections)} />
         <MiniStat title="Yield Rate" value={kpis.yieldRate} />
       </div>
+
+      {/* Timing KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <KPICard
+          title="Active Sessions"
+          value={String(activeSessions.length)}
+          icon={<Users size={28} />}
+          variant="highlight"
+        />
+        <KPICard
+          title="Avg Operator Time"
+          value={timing.avgQueueTime ? `${timing.avgQueueTime.toFixed(1)} min` : "- min"}
+          icon={<Timer size={28} />}
+        />
+        <KPICard
+          title="Avg Review Time"
+          value={timing.avgInspectionTime ? `${timing.avgInspectionTime.toFixed(1)} min` : "- min"}
+          icon={<Clock size={28} />}
+        />
+        <KPICard
+          title="Total Cycle Time"
+          value={timing.totalCycleTime ? `${timing.totalCycleTime.toFixed(1)} min` : "- min"}
+          icon={<Activity size={28} />}
+        />
+      </div>
+
+      {/* Active Sessions */}
+      {activeSessions.length > 0 && (
+        <div>
+          <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
+            <Activity size={22} className="text-success-500" />
+            Active Operator Sessions
+          </h2>
+          <DataTable columns={sessionColumns} data={activeSessions} />
+        </div>
+      )}
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -156,7 +281,7 @@ export default function AdminDashboardPage() {
         <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 underline underline-offset-4 decoration-2">
           Recent Inspection Results
         </h2>
-        <DataTable columns={columns} data={recentInspections} />
+        <DataTable columns={inspectionColumns} data={recentInspections} />
       </div>
     </div>
   );

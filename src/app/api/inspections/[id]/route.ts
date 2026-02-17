@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-// PATCH /api/inspections/[id] — QA override
+// PATCH /api/inspections/[id] — Inspector QA review (second line of defense)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session || (session.user.role !== "INSPECTOR" && session.user.role !== "ADMIN")) {
@@ -11,11 +11,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params;
   const body = await req.json();
-  const { qaDecision, qaJustification } = body;
+  const { qaDecision, qaJustification, inspectionStartedAt } = body;
 
   if (!qaDecision || !qaJustification) {
     return NextResponse.json({ error: "Decision and justification required" }, { status: 400 });
   }
+
+  const now = new Date();
+  const startedAt = inspectionStartedAt ? new Date(inspectionStartedAt) : null;
+  const inspectionActualTime = startedAt
+    ? Math.round((now.getTime() - startedAt.getTime()) / 60000)
+    : null;
 
   const inspection = await prisma.inspection.update({
     where: { id },
@@ -23,7 +29,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       qaDecision,
       qaReviewerId: session.user.id,
       qaJustification,
-      qaReviewedAt: new Date(),
+      qaReviewedAt: now,
+      inspectionStartedAt: startedAt,
+      inspectionCompletedAt: now,
+      inspectionActualTime,
     },
     include: {
       part: true,

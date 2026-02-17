@@ -22,6 +22,10 @@ export async function GET(req: NextRequest) {
     include: {
       part: true,
       machine: { select: { id: true, name: true, type: true } },
+      assignedOperator: { select: { id: true, name: true } },
+      machineSession: {
+        select: { id: true, operator: { select: { name: true } } },
+      },
     },
     orderBy: { position: "asc" },
   });

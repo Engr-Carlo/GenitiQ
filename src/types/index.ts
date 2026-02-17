@@ -55,6 +55,12 @@ export enum QueueItemStatus {
   SKIPPED = "SKIPPED",
 }
 
+export enum SessionStatus {
+  ACTIVE = "ACTIVE",
+  PAUSED = "PAUSED",
+  COMPLETED = "COMPLETED",
+}
+
 // ============================================================
 // User Types
 // ============================================================
@@ -92,6 +98,29 @@ export interface Machine {
   status: MachineStatus;
   location: string | null;
   specifications: Record<string, unknown> | null;
+  currentSessionId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // Populated relations
+  currentSession?: MachineSession | null;
+  queueLength?: number;
+}
+
+// ============================================================
+// Machine Session Types
+// ============================================================
+
+export interface MachineSession {
+  id: string;
+  machineId: string;
+  machine?: Machine;
+  operatorId: string;
+  operator?: User;
+  startTime: Date;
+  endTime: Date | null;
+  status: SessionStatus;
+  itemsCompleted: number;
+  notes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -107,6 +136,9 @@ export interface Part {
   description: string | null;
   status: PartStatus;
   currentMachineId: string | null;
+  barcodeData: string | null;
+  scannedAt: Date | null;
+  scannedById: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -126,11 +158,23 @@ export interface Inspection {
   result: InspectionResult;
   measurements: Record<string, unknown> | null;
   notes: string | null;
+  // Operator timing
+  operatorStartedAt: Date | null;
+  operatorCompletedAt: Date | null;
+  operatorActualTime: number | null;
+  scannedBarcode: string | null;
+  // Inspector/QA review
   qaReviewerId: string | null;
   qaReviewer?: User | null;
   qaDecision: QADecision | null;
   qaJustification: string | null;
   qaReviewedAt: Date | null;
+  inspectionStartedAt: Date | null;
+  inspectionCompletedAt: Date | null;
+  inspectionActualTime: number | null;
+  // Session
+  machineSessionId: string | null;
+  machineSession?: MachineSession | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -149,6 +193,17 @@ export interface InspectionQueue {
   position: number;
   estimatedTime: number;
   status: QueueItemStatus;
+  // Operator timing
+  queueStartedAt: Date | null;
+  queueCompletedAt: Date | null;
+  queueActualTime: number | null;
+  scannedAt: Date | null;
+  scannedBarcode: string | null;
+  // Assignment
+  assignedOperatorId: string | null;
+  assignedOperator?: User | null;
+  machineSessionId: string | null;
+  machineSession?: MachineSession | null;
   createdAt: Date;
   updatedAt: Date;
 }
