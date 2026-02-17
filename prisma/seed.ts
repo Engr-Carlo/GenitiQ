@@ -81,13 +81,13 @@ async function main() {
       where: { email: "qa1@xyz.com" },
       update: {},
       create: {
-        accountId: "ACC-QA-001",
+        accountId: "ACC-INS-003",
         name: "Victoria De Jose",
         email: "qa1@xyz.com",
         password: passwordHash,
-        role: "QA_QC",
+        role: "INSPECTOR",
         department: "Quality Assurance",
-        position: "QA Lead",
+        position: "QA Inspector",
       },
     }),
   ]);

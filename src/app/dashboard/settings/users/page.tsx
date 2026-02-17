@@ -1,63 +1,61 @@
 "use client";
 
-import React, { useState } from "react";
-import { DataTable, Badge } from "@/components/ui";
+import React, { useState, useEffect } from "react";
+import { DataTable, Badge, LoadingSpinner } from "@/components/ui";
 
 // ============================================================
-// Mock Data
+// Types
 // ============================================================
 
 interface UserAccount {
-  acctNo: string;
+  id: string;
+  accountId: string;
   name: string;
   email: string;
-  department: string;
-  position: string;
-  levelOfAccess: string;
+  department: string | null;
+  position: string | null;
+  role: string;
+  isActive: boolean;
 }
-
-const mockUsers: UserAccount[] = [
-  {
-    acctNo: "CH001",
-    name: "A. Dela Cruz",
-    email: "ADC02@email.com",
-    department: "QC",
-    position: "Inspector",
-    levelOfAccess: "User",
-  },
-  {
-    acctNo: "CH002",
-    name: "J. Santos",
-    email: "JS11@email.com",
-    department: "QC",
-    position: "Manager",
-    levelOfAccess: "Admin",
-  },
-  { acctNo: "CH003", name: "", email: "", department: "", position: "", levelOfAccess: "" },
-  { acctNo: "CH004", name: "", email: "", department: "", position: "", levelOfAccess: "" },
-  { acctNo: "CH005", name: "", email: "", department: "", position: "", levelOfAccess: "" },
-  { acctNo: "CH006", name: "", email: "", department: "", position: "", levelOfAccess: "" },
-  { acctNo: "CH007", name: "", email: "", department: "", position: "", levelOfAccess: "" },
-];
 
 // ============================================================
 // User Accounts Page
 // ============================================================
 
 export default function UserAccountsPage() {
-  const [users, setUsers] = useState<UserAccount[]>(mockUsers);
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const _handleRoleChange = (acctNo: string, newRole: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.acctNo === acctNo ? { ...u, levelOfAccess: newRole } : u))
-    );
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/users?limit=100");
+      const data = await response.json();
+      setUsers(data.data || []);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   const columns = [
     {
-      key: "acctNo",
+      key: "accountId",
       header: "Acct. No.",
-      className: "font-bold w-20",
+      className: "font-bold w-32",
     },
     {
       key: "name",
@@ -73,30 +71,38 @@ export default function UserAccountsPage() {
       key: "department",
       header: "Department",
       className: "w-28",
+      render: (item: UserAccount) => item.department || "-",
     },
     {
       key: "position",
       header: "Position",
       className: "min-w-[120px]",
+      render: (item: UserAccount) => item.position || "-",
     },
     {
-      key: "levelOfAccess",
-      header: "Level Of Access",
+      key: "role",
+      header: "Role",
       className: "w-32",
-      render: (item: UserAccount) => {
-        if (!item.name) return (
-          <select className="select-field text-xs py-1 px-2">
-            <option value="">-</option>
-            <option value="User">User</option>
-            <option value="Admin">Admin</option>
-          </select>
-        );
-        return (
-          <Badge variant={item.levelOfAccess === "Admin" ? "success" : item.levelOfAccess === "User" ? "danger" : "gray"}>
-            {item.levelOfAccess || "-"}
-          </Badge>
-        );
-      },
+      render: (item: UserAccount) => (
+        <Badge variant={
+          item.role === "ADMIN" ? "success" : 
+          item.role === "INSPECTOR" ? "info" : 
+          item.role === "OPERATOR" ? "warning" : 
+          "gray"
+        }>
+          {item.role}
+        </Badge>
+      ),
+    },
+    {
+      key: "isActive",
+      header: "Status",
+      className: "w-24",
+      render: (item: UserAccount) => (
+        <Badge variant={item.isActive ? "success" : "danger"}>
+          {item.isActive ? "Active" : "Inactive"}
+        </Badge>
+      ),
     },
   ];
 

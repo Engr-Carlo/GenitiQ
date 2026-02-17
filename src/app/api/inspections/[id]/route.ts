@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth";
 // PATCH /api/inspections/[id] — QA override
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
-  if (!session || (session.user.role !== "QA_QC" && session.user.role !== "ADMIN")) {
+  if (!session || (session.user.role !== "INSPECTOR" && session.user.role !== "ADMIN")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

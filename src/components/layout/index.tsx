@@ -57,22 +57,16 @@ const NAV_ITEMS: NavItem[] = [
     roles: [UserRole.OPERATOR],
   },
   {
-    label: "Home",
-    href: "/dashboard/qa",
-    icon: <Home size={20} />,
-    roles: [UserRole.QA_QC],
-  },
-  {
     label: "Queue Management",
     href: "/dashboard/queue",
     icon: <ListChecks size={20} />,
-    roles: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.QA_QC, UserRole.ADMIN],
+    roles: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.ADMIN],
   },
   {
     label: "Inspections",
     href: "/dashboard/inspections",
     icon: <ClipboardCheck size={20} />,
-    roles: [UserRole.INSPECTOR, UserRole.QA_QC],
+    roles: [UserRole.INSPECTOR],
   },
   {
     label: "Machines",
@@ -84,7 +78,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Analytics",
     href: "/dashboard/analytics",
     icon: <BarChart3 size={20} />,
-    roles: [UserRole.QA_QC, UserRole.ADMIN],
+    roles: [UserRole.INSPECTOR, UserRole.ADMIN],
   },
   {
     label: "Settings",

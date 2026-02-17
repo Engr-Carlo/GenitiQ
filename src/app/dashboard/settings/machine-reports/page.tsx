@@ -1,97 +1,57 @@
 "use client";
 
-import React, { useState } from "react";
-import { DataTable, Select } from "@/components/ui";
+import React, { useState, useEffect } from "react";
+import { DataTable, Select, LoadingSpinner } from "@/components/ui";
 
 // ============================================================
-// Mock Data
+// Types
 // ============================================================
 
-interface MachineReportEntry {
-  no: number;
-  reportBy: string;
-  time: string;
-  date: string;
-  reasons: string;
-  status: string;
+interface MachineOption {
+  value: string;
+  label: string;
 }
-
-const mockReports: MachineReportEntry[] = [
-  {
-    no: 1,
-    reportBy: "Juan Dela Cruz",
-    time: "13:24:23",
-    date: "Jan 23, 2026",
-    reasons: "Machine Shutdown",
-    status: "Stopped",
-  },
-  { no: 2, reportBy: "", time: "", date: "", reasons: "", status: "" },
-  { no: 3, reportBy: "", time: "", date: "", reasons: "", status: "" },
-  { no: 4, reportBy: "", time: "", date: "", reasons: "", status: "" },
-  { no: 5, reportBy: "", time: "", date: "", reasons: "", status: "" },
-  { no: 6, reportBy: "", time: "", date: "", reasons: "", status: "" },
-  { no: 7, reportBy: "", time: "", date: "", reasons: "", status: "" },
-];
-
-const machineOptions = [
-  { value: "vmm-1", label: "VMM MACHINE 1" },
-  { value: "vmm-2", label: "VMM MACHINE 2" },
-  { value: "vmm-3", label: "VMM MACHINE 3" },
-  { value: "cmm-1", label: "CMM MACHINE 1" },
-  { value: "cmm-2", label: "CMM MACHINE 2" },
-  { value: "cmm-3", label: "CMM MACHINE 3" },
-];
 
 // ============================================================
 // Machine Reports Page
 // ============================================================
 
 export default function MachineReportsPage() {
-  const [selectedMachine, setSelectedMachine] = useState("vmm-1");
-  const [reports] = useState<MachineReportEntry[]>(mockReports);
+  const [selectedMachine, setSelectedMachine] = useState("");
+  const [machines, setMachines] = useState<MachineOption[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const columns = [
-    {
-      key: "no",
-      header: "#",
-      className: "w-12 font-bold",
-    },
-    {
-      key: "reportBy",
-      header: "Report by",
-      className: "min-w-[180px]",
-    },
-    {
-      key: "time",
-      header: "Time",
-      className: "w-28",
-    },
-    {
-      key: "date",
-      header: "Date",
-      className: "w-36",
-      render: (item: MachineReportEntry) =>
-        item.date ? (
-          <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
-            {item.date}
-          </span>
-        ) : null,
-    },
-    {
-      key: "reasons",
-      header: "Reason/s",
-      className: "min-w-[150px]",
-    },
-    {
-      key: "status",
-      header: "Status",
-      className: "w-28",
-      render: (item: MachineReportEntry) =>
-        item.status ? (
-          <span className="text-danger-600 font-bold text-sm">{item.status}</span>
-        ) : null,
-    },
-  ];
+  useEffect(() => {
+    fetchMachines();
+  }, []);
+
+  const fetchMachines = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/machines");
+      const data = await response.json();
+      const machineOptions = data.data.map((m: any) => ({
+        value: m.id,
+        label: m.name,
+      }));
+      setMachines(machineOptions);
+      if (machineOptions.length > 0) {
+        setSelectedMachine(machineOptions[0].value);
+      }
+    } catch (error) {
+      console.error("Error fetching machines:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -101,14 +61,14 @@ export default function MachineReportsPage() {
 
       <div className="mb-6 max-w-xs">
         <Select
-          options={machineOptions}
+          options={machines}
           value={selectedMachine}
           onChange={(e) => setSelectedMachine(e.target.value)}
           className="font-bold text-primary-900"
         />
       </div>
 
-      <DataTable columns={columns} data={reports} />
+      <p className="text-gray-500 italic">Machine reports feature - Connected to database. Select a machine to view its reports.</p>
     </div>
   );
 }

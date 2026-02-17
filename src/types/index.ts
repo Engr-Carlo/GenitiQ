@@ -5,7 +5,6 @@
 export enum UserRole {
   INSPECTOR = "INSPECTOR",
   OPERATOR = "OPERATOR",
-  QA_QC = "QA_QC",
   ADMIN = "ADMIN",
 }
 

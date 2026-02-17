@@ -7,20 +7,20 @@ import { UserRole } from "@/types";
 export const PERMISSIONS = {
   // Inspection
   PERFORM_INSPECTION: [UserRole.INSPECTOR],
-  VIEW_INSPECTION_QUEUE: [UserRole.INSPECTOR, UserRole.QA_QC, UserRole.ADMIN],
-  OVERRIDE_INSPECTION: [UserRole.QA_QC],
+  VIEW_INSPECTION_QUEUE: [UserRole.INSPECTOR, UserRole.ADMIN],
+  OVERRIDE_INSPECTION: [UserRole.INSPECTOR],
 
   // Machine
   OPERATE_MACHINE: [UserRole.OPERATOR, UserRole.ADMIN],
-  VIEW_MACHINE_STATUS: [UserRole.OPERATOR, UserRole.INSPECTOR, UserRole.QA_QC, UserRole.ADMIN],
-  TRIGGER_SHUTDOWN: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.QA_QC, UserRole.ADMIN],
+  VIEW_MACHINE_STATUS: [UserRole.OPERATOR, UserRole.INSPECTOR, UserRole.ADMIN],
+  TRIGGER_SHUTDOWN: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.ADMIN],
 
   // Queue
-  VIEW_QUEUE: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.QA_QC, UserRole.ADMIN],
-  REGENERATE_QUEUE: [UserRole.ADMIN, UserRole.QA_QC],
+  VIEW_QUEUE: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.ADMIN],
+  REGENERATE_QUEUE: [UserRole.ADMIN, UserRole.INSPECTOR],
 
   // Analytics
-  VIEW_QUALITY_ANALYTICS: [UserRole.QA_QC, UserRole.ADMIN],
+  VIEW_QUALITY_ANALYTICS: [UserRole.INSPECTOR, UserRole.ADMIN],
   VIEW_PERSONAL_METRICS: [UserRole.INSPECTOR],
 
   // Admin
@@ -58,8 +58,7 @@ const ROUTE_ACCESS: Record<string, UserRole[]> = {
   "/dashboard/admin": [UserRole.ADMIN],
   "/dashboard/inspector": [UserRole.INSPECTOR],
   "/dashboard/operator": [UserRole.OPERATOR],
-  "/dashboard/qa": [UserRole.QA_QC],
-  "/dashboard/queue": [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.QA_QC, UserRole.ADMIN],
+  "/dashboard/queue": [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.ADMIN],
   "/dashboard/settings": [UserRole.ADMIN],
 };
 
@@ -78,9 +77,8 @@ export function canAccessRoute(role: UserRole, path: string): boolean {
 // ============================================================
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  [UserRole.INSPECTOR]: "Inspector",
+  [UserRole.INSPECTOR]: "Inspector/QC",
   [UserRole.OPERATOR]: "Machine Operator",
-  [UserRole.QA_QC]: "QA/QC",
   [UserRole.ADMIN]: "Admin",
 };
 
@@ -100,8 +98,6 @@ export function getDashboardPath(role: UserRole): string {
       return "/dashboard/inspector";
     case UserRole.OPERATOR:
       return "/dashboard/operator";
-    case UserRole.QA_QC:
-      return "/dashboard/qa";
     default:
       return "/dashboard";
   }
