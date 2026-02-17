@@ -262,6 +262,10 @@ function ActiveSessionView({
   const [scanError, setScanError] = useState<string | null>(null);
   const [checkoutConfirm, setCheckoutConfirm] = useState(false);
   const [sessionSummary, setSessionSummary] = useState<Record<string, any> | null>(null);
+  const [reportModal, setReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportShutdown, setReportShutdown] = useState(false);
+  const [reportSubmitting, setReportSubmitting] = useState(false);
   const manualInputRef = useRef<HTMLInputElement>(null);
 
   // The item to display: current in-progress item or next waiting
@@ -391,6 +395,43 @@ function ActiveSessionView({
     }
   };
 
+  const handleReportIssue = async () => {
+    if (!reportReason.trim()) return;
+    
+    setReportSubmitting(true);
+    try {
+      const res = await fetch(`/api/machines/${sessionData.machineId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: reportReason,
+          requestShutdown: reportShutdown,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setReportModal(false);
+        setReportReason("");
+        setReportShutdown(false);
+        if (reportShutdown) {
+          // Machine was shut down, force checkout
+          onCheckOut();
+        } else {
+          // Just reported an issue, continue working
+          alert(data.message || "Issue reported successfully");
+        }
+      } else {
+        alert(data.error || "Failed to report issue");
+      }
+    } catch (error) {
+      console.error("Failed to report issue:", error);
+      alert("Failed to report issue");
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
+
   const isWorking = workingItem?.status === "IN_PROGRESS";
 
   return (
@@ -411,8 +452,17 @@ function ActiveSessionView({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <SessionTimer startTime={sessionData.startTime} />
+            <Button
+              variant="warning"
+              size="sm"
+              icon={<AlertTriangle size={14} />}
+              onClick={() => setReportModal(true)}
+              disabled={isWorking}
+            >
+              Report Issue
+            </Button>
             <Button
               variant="danger"
               size="sm"
@@ -680,6 +730,64 @@ function ActiveSessionView({
             </Button>
           </div>
         )}
+      </Modal>
+
+      {/* Report Issue Modal */}
+      <Modal
+        isOpen={reportModal}
+        onClose={() => { setReportModal(false); setReportReason(""); setReportShutdown(false); }}
+        title="Report Machine Issue"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-warning-50 border border-warning-200">
+            <AlertTriangle size={24} className="text-warning-600" />
+            <div className="text-sm text-gray-700">
+              <p className="font-bold">Report an issue with {sessionData.machine.name}</p>
+              <p className="text-xs text-gray-500">If you request shutdown, your session will end and the machine will be unavailable.</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">Issue Description *</label>
+            <textarea
+              className="input-field min-h-[100px] resize-none"
+              placeholder="Describe the issue (e.g., Machine making unusual noise, calibration error, etc.)"
+              value={reportReason}
+              onChange={(e) => setReportReason(e.target.value)}
+            />
+          </div>
+
+          <div className="flex items-start gap-3 p-3 rounded-lg border border-gray-200">
+            <input
+              type="checkbox"
+              id="requestShutdown"
+              checked={reportShutdown}
+              onChange={(e) => setReportShutdown(e.target.checked)}
+              className="mt-1"
+            />
+            <label htmlFor="requestShutdown" className="text-sm cursor-pointer">
+              <span className="font-bold text-danger-600">Request Immediate Shutdown</span>
+              <p className="text-xs text-gray-500 mt-1">
+                Machine requires immediate shutdown and cannot be used. Only admins can reactivate it.
+              </p>
+            </label>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <Button variant="secondary" onClick={() => { setReportModal(false); setReportReason(""); setReportShutdown(false); }}>
+              Cancel
+            </Button>
+            <Button
+              variant={reportShutdown ? "danger" : "warning"}
+              onClick={handleReportIssue}
+              loading={reportSubmitting}
+              disabled={!reportReason.trim()}
+            >
+              {reportShutdown ? "Shutdown & Report" : "Report Issue"}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

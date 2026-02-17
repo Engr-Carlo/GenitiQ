@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Badge, Button, DataTable, KPICard, ConfirmDialog } from "@/components/ui";
 import {
   Cpu, Scan, AlertTriangle, Settings, Power,
@@ -35,11 +36,15 @@ const statusVariant: Record<string, "success" | "warning" | "danger" | "gray"> =
 };
 
 export default function MachinesPage() {
+  const { data: session } = useSession();
   const [filter, setFilter] = useState<"ALL" | "VMM" | "CMM">("ALL");
   const [shutdownDialog, setShutdownDialog] = useState<{ open: boolean; machineId: string | null }>({ open: false, machineId: null });
 
   const filtered = filter === "ALL" ? mockMachines : mockMachines.filter((m) => m.type === filter);
   const activeMachines = mockMachines.filter((m) => m.status === "ACTIVE").length;
+
+  // Check if user is operator - operators should not see action buttons
+  const isOperator = session?.user?.role === "OPERATOR";
 
   const columns = [
     {
@@ -92,7 +97,8 @@ export default function MachinesPage() {
         </div>
       ),
     },
-    {
+    // Only show actions for non-operators
+    ...(!isOperator ? [{
       key: "actions",
       header: "Actions",
       render: (item: (typeof mockMachines)[0]) => (
@@ -119,7 +125,7 @@ export default function MachinesPage() {
           )}
         </div>
       ),
-    },
+    }] : []),
   ];
 
   return (
