@@ -455,7 +455,7 @@ function ActiveSessionView({
           <div className="flex items-center gap-3">
             <SessionTimer startTime={sessionData.startTime} />
             <Button
-              variant="warning"
+              variant="outline"
               size="sm"
               icon={<AlertTriangle size={14} />}
               onClick={() => setReportModal(true)}
@@ -779,7 +779,7 @@ function ActiveSessionView({
               Cancel
             </Button>
             <Button
-              variant={reportShutdown ? "danger" : "warning"}
+              variant={reportShutdown ? "danger" : "primary"}
               onClick={handleReportIssue}
               loading={reportSubmitting}
               disabled={!reportReason.trim()}
