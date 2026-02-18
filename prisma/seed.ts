@@ -185,23 +185,25 @@ async function main() {
   // 3.5. Barcode References (all parts)
   // ──────────────────────────────────────────────
   const barcodeReferences = await Promise.all(
-    parts.map((part: typeof parts[number], i: number) => {
-      const deadline = new Date();
-      deadline.setDate(deadline.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days from now
-      
-      return prisma.partReference.upsert({
-        where: { barcode: part.barcodeData },
-        update: {},
-        create: {
-          partNumber: part.partNumber,
-          barcode: part.barcodeData,
-          estimatedTime: 15 + Math.floor(Math.random() * 30), // 15-45 minutes
-          deadline: deadline,
-          quantity: 1,
-          uploadedById: users[0].id, // Admin user
-        },
-      });
-    })
+    parts
+      .filter((part) => part.barcodeData) // Only create references for parts with barcodes
+      .map((part: typeof parts[number], i: number) => {
+        const deadline = new Date();
+        deadline.setDate(deadline.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days from now
+        
+        return prisma.partReference.upsert({
+          where: { barcode: part.barcodeData! },
+          update: {},
+          create: {
+            partNumber: part.partNumber,
+            barcode: part.barcodeData!,
+            estimatedTime: 15 + Math.floor(Math.random() * 30), // 15-45 minutes
+            deadline: deadline,
+            quantity: 1,
+            uploadedById: users[0].id, // Admin user
+          },
+        });
+      })
   );
 
   console.log(`✅ Created ${barcodeReferences.length} barcode references`);
