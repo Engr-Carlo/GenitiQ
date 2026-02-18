@@ -223,7 +223,6 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
                   >
                     Machine Reports
                   </Link>
-                  </Link>
                 </div>
               )}
             </div>
