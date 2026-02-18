@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       inspector: {
         select: { id: true, name: true, email: true },
       },
-    },
+    } as any,
     orderBy: [{ partNumber: "asc" }, { barcode: "asc" }],
   });
 
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
 
   // If download=current, export current data as CSV
   if (download === "current") {
-    const rows = references.map((r: typeof references[number]) => [
+    const rows = references.map((r: any) => [
       r.partNumber,
       r.barcode,
       r.estimatedTime,
