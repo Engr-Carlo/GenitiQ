@@ -161,11 +161,14 @@ async function main() {
 
   const parts = await Promise.all(
     partNumbers.map((pn, i) => {
-      const barcode = String(1000000000 + Math.floor(Math.random() * 9000000000)); // 10-digit numeric barcode
+      // Generate deterministic barcode based on part number for consistency
+      const partIndex = parseInt(pn.replace('PN', ''));
+      const barcode = String(1000000000 + partIndex); // Deterministic: PN1001 -> 1000001001
+      
       return prisma.part.upsert({
         where: { partNumber: pn },
         update: {
-          barcodeData: barcode,
+          barcodeData: barcode, // Always sync to deterministic barcode
         },
         create: {
           partNumber: pn,
@@ -179,7 +182,7 @@ async function main() {
     })
   );
 
-  console.log(`✅ Created ${parts.length} parts (with numeric barcodes)`);
+  console.log(`✅ Created ${parts.length} parts (with deterministic barcodes)`);
 
   // ──────────────────────────────────────────────
   // 3.5. Barcode References (all parts)
@@ -190,14 +193,18 @@ async function main() {
       .map((part: typeof parts[number], i: number) => {
         const deadline = new Date();
         deadline.setDate(deadline.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days from now
+        const estimatedTime = 15 + Math.floor(Math.random() * 30); // 15-45 minutes
         
         return prisma.partReference.upsert({
           where: { barcode: part.barcodeData! },
-          update: {},
+          update: {
+            deadline: deadline,
+            estimatedTime: estimatedTime,
+          },
           create: {
             partNumber: part.partNumber,
             barcode: part.barcodeData!,
-            estimatedTime: 15 + Math.floor(Math.random() * 30), // 15-45 minutes
+            estimatedTime: estimatedTime,
             deadline: deadline,
             quantity: 1,
             uploadedById: users[0].id, // Admin user
