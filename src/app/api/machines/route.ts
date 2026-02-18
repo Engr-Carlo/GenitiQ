@@ -4,74 +4,82 @@ import { auth } from "@/lib/auth";
 
 // GET /api/machines
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(req.url);
-  const type = searchParams.get("type"); // VMM or CMM
-  const status = searchParams.get("status");
-  const hasActiveSession = searchParams.get("hasActiveSession");
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type"); // VMM or CMM
+    const status = searchParams.get("status");
+    const hasActiveSession = searchParams.get("hasActiveSession");
 
-  const where: any = {};
-  if (type) where.type = type;
-  if (status) where.status = status;
+    const where: any = {};
+    if (type) where.type = type;
+    if (status) where.status = status;
 
-  const machines = await prisma.machine.findMany({
-    where,
-    include: {
-      _count: {
-        select: { inspectionQueues: { where: { status: "WAITING" } } },
-      },
-      sessions: {
-        where: { status: "ACTIVE" },
-        include: {
-          operator: { select: { id: true, name: true, accountId: true } },
+    const machines = await prisma.machine.findMany({
+      where,
+      include: {
+        _count: {
+          select: { inspectionQueues: { where: { status: "WAITING" } } },
         },
-        take: 1,
+        sessions: {
+          where: { status: "ACTIVE" },
+          include: {
+            operator: { select: { id: true, name: true, accountId: true } },
+          },
+          take: 1,
+        },
       },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  let result = machines.map((m: typeof machines[number]) => {
-    const activeSession = m.sessions[0] || null;
-    return {
-      id: m.id,
-      name: m.name,
-      type: m.type,
-      status: m.status,
-      location: m.location,
-      specifications: m.specifications,
-      currentSessionId: m.currentSessionId,
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt,
-      queueLength: m._count.inspectionQueues,
-      currentSession: activeSession,
-      currentOperator: activeSession?.operator || null,
-      hasActiveSession: !!activeSession,
-    };
-  });
-
-  // Filter by active session if requested
-  if (hasActiveSession === "true") {
-    result = result.filter((m: typeof result[number]) => m.hasActiveSession);
-  } else if (hasActiveSession === "false") {
-    result = result.filter((m: typeof result[number]) => !m.hasActiveSession);
-  }
-
-  // For operators: only show their own machine session details
-  if (session.user.role === "OPERATOR") {
-    result = result.map((m: typeof result[number]) => {
-      const isOwnMachine = m.currentSession?.operatorId === session.user.id;
-      return {
-        ...m,
-        // Operators can see their own session but not others'
-        currentOperator: isOwnMachine ? m.currentOperator : null,
-      } as typeof m;
+      orderBy: { name: "asc" },
     });
-  }
 
-  return NextResponse.json({ data: result });
+    let result = machines.map((m: typeof machines[number]) => {
+      const activeSession = m.sessions[0] || null;
+      return {
+        id: m.id,
+        name: m.name,
+        type: m.type,
+        status: m.status,
+        location: m.location,
+        specifications: m.specifications,
+        currentSessionId: m.currentSessionId,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+        queueLength: m._count.inspectionQueues,
+        currentSession: activeSession,
+        currentOperator: activeSession?.operator || null,
+        hasActiveSession: !!activeSession,
+      };
+    });
+
+    // Filter by active session if requested
+    if (hasActiveSession === "true") {
+      result = result.filter((m: typeof result[number]) => m.hasActiveSession);
+    } else if (hasActiveSession === "false") {
+      result = result.filter((m: typeof result[number]) => !m.hasActiveSession);
+    }
+
+    // For operators: only show their own machine session details
+    if (session.user.role === "OPERATOR") {
+      result = result.map((m: typeof result[number]) => {
+        const isOwnMachine = m.currentSession?.operatorId === session.user.id;
+        return {
+          ...m,
+          // Operators can see their own session but not others'
+          currentOperator: isOwnMachine ? m.currentOperator : null,
+        } as typeof m;
+      });
+    }
+
+    return NextResponse.json({ data: result });
+  } catch (error: any) {
+    console.error("Failed to fetch machines:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch machines" },
+      { status: 500 }
+    );
+  }
 }
 
 // POST /api/machines — create a new machine
