@@ -98,6 +98,7 @@ model User {
   assignedQueueItems InspectionQueue[]  @relation("AssignedOperator")
   scannedParts       Part[]             @relation("ScannedByUser")
   partReferences     PartReference[]    @relation("PartReferenceUploader")
+  inspectorReferences PartReference[]   @relation("InspectorPartReferences")
 
   @@index([email])
   @@index([role])
@@ -120,6 +121,7 @@ model Machine {
   machineReports   MachineReport[]
   shutdownEvents   ShutdownEvent[]
   sessions         MachineSession[]
+  partReferences   PartReference[]    @relation("MachinePartReferences")
 
   @@index([status])
   @@index([type])
@@ -154,6 +156,10 @@ model PartReference {
   estimatedTime Int      // in minutes
   deadline      DateTime
   quantity      Int      @default(1)
+  machineId     String?
+  machine       Machine? @relation("MachinePartReferences", fields: [machineId], references: [id])
+  inspectorId   String?
+  inspector     User?    @relation("InspectorPartReferences", fields: [inspectorId], references: [id])
   uploadedById  String
   uploadedBy    User     @relation("PartReferenceUploader", fields: [uploadedById], references: [id])
   createdAt     DateTime @default(now())
@@ -162,6 +168,7 @@ model PartReference {
   @@index([partNumber])
   @@index([barcode])
   @@index([deadline])
+  @@index([machineId])
 }
 
 model MachineSession {

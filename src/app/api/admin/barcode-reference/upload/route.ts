@@ -35,12 +35,14 @@ export async function POST(req: NextRequest) {
     // Parse CSV
     const header = lines[0].split(",").map((h) => h.trim());
     const requiredHeaders = ["partNumber", "barcode", "estimatedTime", "deadline", "quantity"];
+    const optionalHeaders = ["machine", "inspector"];
 
     const missingHeaders = requiredHeaders.filter((h) => !header.includes(h));
     if (missingHeaders.length > 0) {
       return NextResponse.json({
         error: `Missing required columns: ${missingHeaders.join(", ")}`,
         requiredHeaders,
+        optionalHeaders,
       }, { status: 400 });
     }
 
@@ -84,12 +86,46 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      // Validate machine if provided
+      let machineId: string | undefined;
+      if (rowData.machine && rowData.machine.trim()) {
+        const machine = await prisma.machine.findUnique({
+          where: { name: rowData.machine.trim() },
+          select: { id: true },
+        });
+        if (!machine) {
+          errors.push({ row: i + 1, error: `Machine '${rowData.machine}' not found` });
+          continue;
+        }
+        machineId = machine.id;
+      }
+
+      // Validate inspector if provided
+      let inspectorId: string | undefined;
+      if (rowData.inspector && rowData.inspector.trim()) {
+        const inspector = await prisma.user.findUnique({
+          where: { email: rowData.inspector.trim() },
+          select: { id: true, role: true },
+        });
+        if (!inspector) {
+          errors.push({ row: i + 1, error: `Inspector '${rowData.inspector}' not found` });
+          continue;
+        }
+        if (inspector.role !== "INSPECTOR") {
+          errors.push({ row: i + 1, error: `User '${rowData.inspector}' is not an inspector` });
+          continue;
+        }
+        inspectorId = inspector.id;
+      }
+
       data.push({
         partNumber: rowData.partNumber,
         barcode: rowData.barcode,
         estimatedTime,
         deadline,
         quantity,
+        machineId,
+        inspectorId,
       });
     }
 
@@ -117,6 +153,8 @@ export async function POST(req: NextRequest) {
             estimatedTime: item.estimatedTime,
             deadline: item.deadline,
             quantity: item.quantity,
+            machineId: item.machineId || null,
+            inspectorId: item.inspectorId || null,
             uploadedById: session.user.id,
           },
           create: {
@@ -125,6 +163,8 @@ export async function POST(req: NextRequest) {
             estimatedTime: item.estimatedTime,
             deadline: item.deadline,
             quantity: item.quantity,
+            machineId: item.machineId || null,
+            inspectorId: item.inspectorId || null,
             uploadedById: session.user.id,
           },
         });

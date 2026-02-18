@@ -26,6 +26,12 @@ export async function GET(req: NextRequest) {
       uploadedBy: {
         select: { id: true, name: true, email: true },
       },
+      machine: {
+        select: { id: true, name: true, type: true, status: true },
+      },
+      inspector: {
+        select: { id: true, name: true, email: true },
+      },
     },
     orderBy: [{ partNumber: "asc" }, { barcode: "asc" }],
   });
@@ -33,10 +39,10 @@ export async function GET(req: NextRequest) {
   // If download=template, return CSV template
   if (download === "template") {
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity",
-      "PN10001,BC-10001-A001,4,2026-02-25,1",
-      "PN10001,BC-10001-A002,4,2026-02-25,1",
-      "PN10002,BC-10002-B001,3,2026-02-26,1",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector",
+      "PN1001,1000001001,45,2026-12-31,1,VMM1,inspector1@xyz.com",
+      "PN1002,1000001002,30,2026-12-30,1,VMM2,",
+      "PN1003,1000001003,60,2027-01-15,1,CMM1,inspector2@xyz.com",
     ].join("\n");
 
     return new NextResponse(csv, {
@@ -55,10 +61,12 @@ export async function GET(req: NextRequest) {
       r.estimatedTime,
       r.deadline.toISOString().split("T")[0],
       r.quantity,
+      r.machine?.name || "",
+      r.inspector?.email || "",
     ].join(","));
 
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector",
       ...rows,
     ].join("\n");
 

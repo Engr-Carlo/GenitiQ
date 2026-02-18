@@ -13,6 +13,8 @@ interface BarcodeReference {
   estimatedTime: number;
   deadline: string;
   quantity: number;
+  machine?: { id: string; name: string; type: string; status: string } | null;
+  inspector?: { id: string; name: string; email: string } | null;
   uploadedBy: { id: string; name: string; email: string };
   createdAt: string;
   updatedAt: string;
@@ -140,6 +142,35 @@ export default function BarcodeReferencePage() {
       header: "Barcode",
       render: (item: BarcodeReference) => (
         <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{item.barcode}</span>
+      ),
+    },
+    {
+      key: "machine",
+      header: "Machine",
+      render: (item: BarcodeReference) => (
+        item.machine ? (
+          <div className="flex items-center gap-2">
+            <Badge variant={item.machine.status === "ACTIVE" ? "success" : "warning"}>
+              {item.machine.name}
+            </Badge>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-sm italic">Not assigned</span>
+        )
+      ),
+    },
+    {
+      key: "inspector",
+      header: "Inspector",
+      render: (item: BarcodeReference) => (
+        item.inspector ? (
+          <div className="text-sm">
+            <p className="font-medium">{item.inspector.name}</p>
+            <p className="text-gray-400 text-xs">{item.inspector.email}</p>
+          </div>
+        ) : (
+          <span className="text-gray-400 text-sm italic">Available</span>
+        )
       ),
     },
     {

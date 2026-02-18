@@ -198,6 +198,17 @@ async function main() {
         deadline.setDate(deadline.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days from now
         const estimatedTime = 15 + Math.floor(Math.random() * 30); // 15-45 minutes
         
+        // Assign machine cyclically (distribute across all machines)
+        const machineIndex = i % machines.length;
+        const assignedMachine = machines[machineIndex];
+        
+        // Assign inspector to ~60% of parts (only inspectors, not operators)
+        const inspectorUsers = users.filter((u: typeof users[number]) => u.role === "INSPECTOR");
+        const assignInspector = Math.random() < 0.6;
+        const assignedInspector = assignInspector 
+          ? inspectorUsers[i % inspectorUsers.length] 
+          : null;
+        
         return prisma.partReference.create({
           data: {
             partNumber: part.partNumber,
@@ -205,6 +216,8 @@ async function main() {
             estimatedTime: estimatedTime,
             deadline: deadline,
             quantity: 1,
+            machineId: assignedMachine.id,
+            inspectorId: assignedInspector?.id || null,
             uploadedById: users[0].id, // Admin user
           },
         });
