@@ -273,7 +273,7 @@ export default function MachinesPage() {
             : `Are you sure you want to activate ${actionDialog.machineName}? It will become available for use.`
         }
         confirmText={actionDialog.action === "shutdown" ? "Shutdown" : "Activate"}
-        variant={actionDialog.action === "shutdown" ? "danger" : "success"}
+        variant={actionDialog.action === "shutdown" ? "danger" : "primary"}
       />
     </div>
   );
