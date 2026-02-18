@@ -170,13 +170,38 @@ async function main() {
           description: `Test component for inspection`,
           status: i < 10 ? "QUEUED" : i < 20 ? "IN_INSPECTION" : i < 23 ? "FOR_REVIEW" : "ACCEPTED",
           currentMachineId: i < 10 ? machines[i % machines.length].id : null,
-          barcodeData: `BC-${pn}-${String(Math.floor(10000 + Math.random() * 90000))}`,
+          barcodeData: String(1000000000 + Math.floor(Math.random() * 9000000000)), // 10-digit numeric barcode
         },
       })
     )
   );
 
-  console.log(`✅ Created ${parts.length} parts (with barcodes)`);
+  console.log(`✅ Created ${parts.length} parts (with numeric barcodes)`);
+
+  // ──────────────────────────────────────────────
+  // 3.5. Barcode References (all parts)
+  // ──────────────────────────────────────────────
+  const barcodeReferences = await Promise.all(
+    parts.map((part: typeof parts[number], i: number) => {
+      const deadline = new Date();
+      deadline.setDate(deadline.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days from now
+      
+      return prisma.partReference.upsert({
+        where: { barcode: part.barcodeData },
+        update: {},
+        create: {
+          partNumber: part.partNumber,
+          barcode: part.barcodeData,
+          estimatedTime: 15 + Math.floor(Math.random() * 30), // 15-45 minutes
+          deadline: deadline,
+          quantity: 1,
+          uploadedById: users[0].id, // Admin user
+        },
+      });
+    })
+  );
+
+  console.log(`✅ Created ${barcodeReferences.length} barcode references`);
 
   // ──────────────────────────────────────────────
   // 4. Queue items (first 10 parts)
