@@ -15,6 +15,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Barcode is required" }, { status: 400 });
   }
 
+  // STRICT VALIDATION: Check if barcode exists in PartReference
+  const barcodeRef = await prisma.partReference.findUnique({
+    where: { barcode },
+  });
+
+  if (!barcodeRef) {
+    return NextResponse.json({
+      error: "Barcode not found",
+      message: "This barcode is not registered in the system. Please contact admin.",
+      verified: false,
+    }, { status: 404 });
+  }
+
   // Get queue item with part
   const queueItem = await prisma.inspectionQueue.findUnique({
     where: { id: queueItemId },
@@ -25,42 +38,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Queue item not found" }, { status: 404 });
   }
 
-  // Check if barcode matches the part (if part has existing barcode data)
   const part = queueItem.part;
-  let verified = true;
-  let message = "Barcode scanned successfully";
 
-  if (part.barcodeData && part.barcodeData !== barcode) {
-    // Barcode doesn't match — could be wrong part
-    verified = false;
-    message = `Barcode mismatch: Expected ${part.barcodeData}, scanned ${barcode}`;
+  // Verify part number matches
+  if (part.partNumber !== barcodeRef.partNumber) {
+    return NextResponse.json({
+      error: "Part number mismatch",
+      message: `Scanned barcode is for ${barcodeRef.partNumber}, but queue item is for ${part.partNumber}`,
+      verified: false,
+    }, { status: 400 });
   }
 
-  // Update queue item with scan data
+  // Update queue item with scan data and reference info
   const now = new Date();
   await prisma.inspectionQueue.update({
     where: { id: queueItemId },
     data: {
       scannedAt: now,
       scannedBarcode: barcode,
+      estimatedTime: barcodeRef.estimatedTime, // Auto-populate from reference
     },
   });
 
-  // Update part's barcode data if first scan
-  if (!part.barcodeData) {
-    await prisma.part.update({
-      where: { id: part.id },
-      data: {
-        barcodeData: barcode,
-        scannedAt: now,
-        scannedById: session.user.id,
-      },
-    });
-  }
+  // Update part's barcode data
+  await prisma.part.update({
+    where: { id: part.id },
+    data: {
+      barcodeData: barcode,
+      scannedAt: now,
+      scannedById: session.user.id,
+    },
+  });
 
   return NextResponse.json({
     data: {
-      verified,
+      verified: true,
       queueItemId,
       part: {
         id: part.id,
@@ -68,8 +80,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         name: part.name,
         barcodeData: barcode,
       },
+      reference: {
+        estimatedTime: barcodeRef.estimatedTime,
+        deadline: barcodeRef.deadline,
+        quantity: barcodeRef.quantity,
+      },
       machineName: queueItem.machine.name,
     },
-    message,
+    message: "Barcode verified successfully",
   });
 }

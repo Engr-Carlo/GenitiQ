@@ -97,6 +97,7 @@ model User {
   machineSessions    MachineSession[]   @relation("OperatorSessions")
   assignedQueueItems InspectionQueue[]  @relation("AssignedOperator")
   scannedParts       Part[]             @relation("ScannedByUser")
+  partReferences     PartReference[]    @relation("PartReferenceUploader")
 
   @@index([email])
   @@index([role])
@@ -144,6 +145,23 @@ model Part {
   @@index([status])
   @@index([partNumber])
   @@index([barcodeData])
+}
+
+model PartReference {
+  id            String   @id @default(cuid())
+  partNumber    String
+  barcode       String   @unique
+  estimatedTime Int      // in minutes
+  deadline      DateTime
+  quantity      Int      @default(1)
+  uploadedById  String
+  uploadedBy    User     @relation("PartReferenceUploader", fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([partNumber])
+  @@index([barcode])
+  @@index([deadline])
 }
 
 model MachineSession {
