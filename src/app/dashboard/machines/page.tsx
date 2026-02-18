@@ -1,25 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Badge, Button, DataTable, KPICard, ConfirmDialog } from "@/components/ui";
+import { Badge, Button, DataTable, KPICard, ConfirmDialog, LoadingSpinner } from "@/components/ui";
 import {
   Cpu, Scan, AlertTriangle, Settings, Power,
   PowerOff, Wrench, CheckCircle2,
 } from "lucide-react";
 
-const mockMachines = [
-  { id: "1", name: "VMM-1", type: "VMM" as const, status: "ACTIVE" as const, location: "Bay A - Station 1", inspections: 245, queueLength: 5, utilization: "87%" },
-  { id: "2", name: "VMM-2", type: "VMM" as const, status: "ACTIVE" as const, location: "Bay A - Station 2", inspections: 198, queueLength: 3, utilization: "72%" },
-  { id: "3", name: "VMM-3", type: "VMM" as const, status: "IDLE" as const, location: "Bay A - Station 3", inspections: 0, queueLength: 0, utilization: "0%" },
-  { id: "4", name: "VMM-4", type: "VMM" as const, status: "MAINTENANCE" as const, location: "Bay A - Station 4", inspections: 0, queueLength: 0, utilization: "0%" },
-  { id: "5", name: "VMM-5", type: "VMM" as const, status: "ACTIVE" as const, location: "Bay B - Station 1", inspections: 156, queueLength: 4, utilization: "65%" },
-  { id: "6", name: "VMM-6", type: "VMM" as const, status: "ACTIVE" as const, location: "Bay B - Station 2", inspections: 289, queueLength: 6, utilization: "91%" },
-  { id: "7", name: "CMM-1", type: "CMM" as const, status: "ACTIVE" as const, location: "Bay C - Station 1", inspections: 178, queueLength: 4, utilization: "78%" },
-  { id: "8", name: "CMM-2", type: "CMM" as const, status: "ACTIVE" as const, location: "Bay C - Station 2", inspections: 218, queueLength: 3, utilization: "82%" },
-  { id: "9", name: "CMM-3", type: "CMM" as const, status: "IDLE" as const, location: "Bay C - Station 3", inspections: 0, queueLength: 0, utilization: "0%" },
-  { id: "10", name: "CMM-4", type: "CMM" as const, status: "SHUTDOWN" as const, location: "Bay C - Station 4", inspections: 0, queueLength: 0, utilization: "0%" },
-];
+interface Machine {
+  id: string;
+  name: string;
+  type: "VMM" | "CMM";
+  status: "ACTIVE" | "IDLE" | "MAINTENANCE" | "SHUTDOWN";
+  location?: string | null;
+  queueLength: number;
+  hasActiveSession?: boolean;
+}
 
 const statusColors: Record<string, string> = {
   ACTIVE: "bg-success-500",
@@ -38,19 +35,76 @@ const statusVariant: Record<string, "success" | "warning" | "danger" | "gray"> =
 export default function MachinesPage() {
   const { data: session } = useSession();
   const [filter, setFilter] = useState<"ALL" | "VMM" | "CMM">("ALL");
-  const [shutdownDialog, setShutdownDialog] = useState<{ open: boolean; machineId: string | null }>({ open: false, machineId: null });
-
-  const filtered = filter === "ALL" ? mockMachines : mockMachines.filter((m) => m.type === filter);
-  const activeMachines = mockMachines.filter((m) => m.status === "ACTIVE").length;
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionDialog, setActionDialog] = useState<{ 
+    open: boolean; 
+    machineId: string | null; 
+    action: "shutdown" | "activate" | null;
+    machineName: string | null;
+  }>({ open: false, machineId: null, action: null, machineName: null });
+  const [updating, setUpdating] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Check if user is operator - operators should not see action buttons
   const isOperator = session?.user?.role === "OPERATOR";
+  const isAdmin = session?.user?.role === "ADMIN";
+
+  useEffect(() => {
+    fetchMachines();
+  }, []);
+
+  const fetchMachines = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/machines");
+      const data = await res.json();
+      setMachines(data.data || []);
+    } catch (error) {
+      console.error("Failed to fetch machines:", error);
+      setMessage({ type: "error", text: "Failed to load machines" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (machineId: string, newStatus: "ACTIVE" | "SHUTDOWN") => {
+    setUpdating(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/admin/machines/${machineId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setMessage({ type: "success", text: `Machine ${newStatus === "ACTIVE" ? "activated" : "shut down"} successfully` });
+        await fetchMachines();
+      } else {
+        setMessage({ type: "error", text: data.error || "Failed to update machine status" });
+      }
+    } catch (error) {
+      console.error("Failed to update machine status:", error);
+      setMessage({ type: "error", text: "Failed to update machine status" });
+    } finally {
+      setUpdating(false);
+      setActionDialog({ open: false, machineId: null, action: null, machineName: null });
+    }
+  };
+
+  const filtered = filter === "ALL" ? machines : machines.filter((m) => m.type === filter);
+  const activeMachines = machines.filter((m) => m.status === "ACTIVE").length;
+  const maintenanceMachines = machines.filter((m) => m.status === "MAINTENANCE").length;
+  const shutdownMachines = machines.filter((m) => m.status === "SHUTDOWN").length;
 
   const columns = [
     {
       key: "name",
       header: "Machine",
-      render: (item: (typeof mockMachines)[0]) => (
+      render: (item: Machine) => (
         <div className="flex items-center gap-3">
           <div
             className={`w-9 h-9 rounded-lg flex items-center justify-center text-white ${
@@ -63,7 +117,7 @@ export default function MachinesPage() {
           </div>
           <div>
             <p className="font-black">{item.name}</p>
-            <p className="text-xs text-gray-400">{item.location}</p>
+            <p className="text-xs text-gray-400">{item.location || "No location"}</p>
           </div>
         </div>
       ),
@@ -71,56 +125,68 @@ export default function MachinesPage() {
     {
       key: "type",
       header: "Type",
-      render: (item: (typeof mockMachines)[0]) => <Badge variant="info">{item.type}</Badge>,
+      render: (item: Machine) => <Badge variant="info">{item.type}</Badge>,
     },
     {
       key: "status",
       header: "Status",
-      render: (item: (typeof mockMachines)[0]) => (
+      render: (item: Machine) => (
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${statusColors[item.status]}`} />
           <Badge variant={statusVariant[item.status]}>{item.status}</Badge>
         </div>
       ),
     },
-    { key: "queueLength", header: "Queue", render: (item: (typeof mockMachines)[0]) => <span className="font-bold">{item.queueLength}</span> },
-    { key: "inspections", header: "Inspections", render: (item: (typeof mockMachines)[0]) => <span>{item.inspections}</span> },
-    {
-      key: "utilization",
-      header: "Utilization",
-      render: (item: (typeof mockMachines)[0]) => (
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-primary-500 rounded-full" style={{ width: item.utilization }} />
-          </div>
-          <span className="text-xs font-bold">{item.utilization}</span>
-        </div>
-      ),
+    { 
+      key: "queueLength", 
+      header: "Queue", 
+      render: (item: Machine) => <span className="font-bold">{item.queueLength}</span> 
     },
-    // Only show actions for non-operators
-    ...(!isOperator ? [{
+    { 
+      key: "sessionStatus", 
+      header: "Session", 
+      render: (item: Machine) => (
+        <Badge variant={item.hasActiveSession ? "warning" : "gray"}>
+          {item.hasActiveSession ? "In Use" : "Available"}
+        </Badge>
+      )
+    },
+    // Only show actions for admins
+    ...(isAdmin ? [{
       key: "actions",
       header: "Actions",
-      render: (item: (typeof mockMachines)[0]) => (
+      render: (item: Machine) => (
         <div className="flex gap-1">
           {item.status === "ACTIVE" && (
             <Button
               size="sm"
               variant="danger"
               icon={<PowerOff size={14} />}
-              onClick={() => setShutdownDialog({ open: true, machineId: item.id })}
+              onClick={() => setActionDialog({ 
+                open: true, 
+                machineId: item.id, 
+                action: "shutdown",
+                machineName: item.name 
+              })}
+              disabled={updating}
             >
               Shutdown
             </Button>
           )}
           {item.status === "SHUTDOWN" && (
-            <Button size="sm" variant="success" icon={<Power size={14} />}>
+            <Button 
+              size="sm" 
+              variant="success" 
+              icon={<Power size={14} />}
+              onClick={() => setActionDialog({ 
+                open: true, 
+                machineId: item.id, 
+                action: "activate",
+                machineName: item.name 
+              })}
+              disabled={updating}
+            >
               Activate
-            </Button>
-          )}
-          {item.status === "MAINTENANCE" && (
-            <Button size="sm" variant="outline" icon={<Wrench size={14} />}>
-              Complete
             </Button>
           )}
         </div>
@@ -128,8 +194,27 @@ export default function MachinesPage() {
     }] : []),
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Success/Error Message */}
+      {message && (
+        <div
+          className={`p-4 rounded-lg ${
+            message.type === "success" ? "bg-success-50 text-success-900" : "bg-danger-50 text-danger-900"
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -160,24 +245,35 @@ export default function MachinesPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard title="Total Machines" value={String(mockMachines.length)} icon={<Cpu size={24} />} />
+        <KPICard title="Total Machines" value={String(machines.length)} icon={<Cpu size={24} />} />
         <KPICard title="Active" value={String(activeMachines)} icon={<CheckCircle2 size={24} />} variant="highlight" />
-        <KPICard title="Maintenance" value="1" icon={<Wrench size={24} />} />
-        <KPICard title="Shutdown" value="1" icon={<AlertTriangle size={24} />} />
+        <KPICard title="Maintenance" value={String(maintenanceMachines)} icon={<Wrench size={24} />} />
+        <KPICard title="Shutdown" value={String(shutdownMachines)} icon={<AlertTriangle size={24} />} />
       </div>
 
       {/* Machine Table */}
       <DataTable columns={columns} data={filtered} />
 
-      {/* Shutdown Confirm */}
+      {/* Action Confirm Dialog */}
       <ConfirmDialog
-        isOpen={shutdownDialog.open}
-        onClose={() => setShutdownDialog({ open: false, machineId: null })}
-        onConfirm={() => setShutdownDialog({ open: false, machineId: null })}
-        title="Shutdown Machine?"
-        message="This will immediately stop the machine and move all queued items to other available machines."
-        confirmText="Shutdown"
-        variant="danger"
+        isOpen={actionDialog.open}
+        onClose={() => setActionDialog({ open: false, machineId: null, action: null, machineName: null })}
+        onConfirm={() => {
+          if (actionDialog.machineId && actionDialog.action) {
+            handleStatusChange(
+              actionDialog.machineId, 
+              actionDialog.action === "activate" ? "ACTIVE" : "SHUTDOWN"
+            );
+          }
+        }}
+        title={actionDialog.action === "shutdown" ? "Shutdown Machine?" : "Activate Machine?"}
+        message={
+          actionDialog.action === "shutdown"
+            ? `Are you sure you want to shutdown ${actionDialog.machineName}? This will prevent operators from using it.`
+            : `Are you sure you want to activate ${actionDialog.machineName}? It will become available for use.`
+        }
+        confirmText={actionDialog.action === "shutdown" ? "Shutdown" : "Activate"}
+        variant={actionDialog.action === "shutdown" ? "danger" : "success"}
       />
     </div>
   );

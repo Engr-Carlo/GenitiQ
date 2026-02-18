@@ -112,22 +112,7 @@ async function main() {
     prisma.machine.upsert({
       where: { name: "VMM-3" },
       update: {},
-      create: { name: "VMM-3", type: "VMM", status: "IDLE", location: "Bay A - Station 3" },
-    }),
-    prisma.machine.upsert({
-      where: { name: "VMM-4" },
-      update: {},
-      create: { name: "VMM-4", type: "VMM", status: "MAINTENANCE", location: "Bay A - Station 4" },
-    }),
-    prisma.machine.upsert({
-      where: { name: "VMM-5" },
-      update: {},
-      create: { name: "VMM-5", type: "VMM", status: "ACTIVE", location: "Bay B - Station 1" },
-    }),
-    prisma.machine.upsert({
-      where: { name: "VMM-6" },
-      update: {},
-      create: { name: "VMM-6", type: "VMM", status: "ACTIVE", location: "Bay B - Station 2" },
+      create: { name: "VMM-3", type: "VMM", status: "ACTIVE", location: "Bay A - Station 3" },
     }),
     // CMMs
     prisma.machine.upsert({
@@ -139,16 +124,6 @@ async function main() {
       where: { name: "CMM-2" },
       update: {},
       create: { name: "CMM-2", type: "CMM", status: "ACTIVE", location: "Bay C - Station 2" },
-    }),
-    prisma.machine.upsert({
-      where: { name: "CMM-3" },
-      update: {},
-      create: { name: "CMM-3", type: "CMM", status: "IDLE", location: "Bay C - Station 3" },
-    }),
-    prisma.machine.upsert({
-      where: { name: "CMM-4" },
-      update: {},
-      create: { name: "CMM-4", type: "CMM", status: "SHUTDOWN", location: "Bay C - Station 4" },
     }),
   ]);
 

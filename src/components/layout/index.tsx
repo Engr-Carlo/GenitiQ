@@ -354,6 +354,8 @@ export function Sidebar({ user, isOpen, onClose }: SidebarProps) {
 const SETTINGS_ITEMS = [
   { label: "Manage Access", href: "/dashboard/settings/access", icon: <Shield size={18} /> },
   { label: "User Accounts", href: "/dashboard/settings/users", icon: <Users size={18} /> },
+  { label: "Barcode Reference", href: "/dashboard/settings/barcode-reference", icon: <FileText size={18} /> },
+  { label: "Machine Inspectors", href: "/dashboard/settings/machine-inspectors", icon: <Users size={18} /> },
   { label: "Audit Logs", href: "/dashboard/settings/audit-logs", icon: <FileText size={18} /> },
   { label: "Machine Reports", href: "/dashboard/settings/machine-reports", icon: <Monitor size={18} /> },
 ];
