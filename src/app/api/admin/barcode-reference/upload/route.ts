@@ -153,20 +153,20 @@ export async function POST(req: NextRequest) {
             estimatedTime: item.estimatedTime,
             deadline: item.deadline,
             quantity: item.quantity,
-            machineId: item.machineId || null,
-            inspectorId: item.inspectorId || null,
+            machineId: item.machineId ?? null,
+            inspectorId: item.inspectorId ?? null,
             uploadedById: session.user.id,
-          },
+          } as any,
           create: {
             partNumber: item.partNumber,
             barcode: item.barcode,
             estimatedTime: item.estimatedTime,
             deadline: item.deadline,
             quantity: item.quantity,
-            machineId: item.machineId || null,
-            inspectorId: item.inspectorId || null,
+            machineId: item.machineId ?? null,
+            inspectorId: item.inspectorId ?? null,
             uploadedById: session.user.id,
-          },
+          } as any,
         });
 
         // Check if it was an update or create by checking if barcode existed
