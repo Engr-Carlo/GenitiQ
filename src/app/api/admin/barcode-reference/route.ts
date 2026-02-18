@@ -27,7 +27,15 @@ export async function GET(req: NextRequest) {
         select: { id: true, name: true, email: true },
       },
       machine: {
-        select: { id: true, name: true, type: true, status: true },
+        select: { 
+          id: true, 
+          name: true, 
+          type: true, 
+          status: true,
+          assignedInspector: {
+            select: { id: true, name: true, email: true },
+          },
+        },
       },
       inspector: {
         select: { id: true, name: true, email: true },
@@ -39,10 +47,10 @@ export async function GET(req: NextRequest) {
   // If download=template, return CSV template
   if (download === "template") {
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector",
-      "PN1001,1000001001,45,2026-12-31,1,VMM1,inspector1@xyz.com",
-      "PN1002,1000001002,30,2026-12-30,1,VMM2,",
-      "PN1003,1000001003,60,2027-01-15,1,CMM1,inspector2@xyz.com",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine",
+      "PN1001,1000001001,45,2026-12-31,1,VMM-1",
+      "PN1002,1000001002,30,2026-12-30,1,VMM-2",
+      "PN1003,1000001003,60,2027-01-15,1,CMM-1",
     ].join("\n");
 
     return new NextResponse(csv, {
@@ -62,11 +70,11 @@ export async function GET(req: NextRequest) {
       r.deadline.toISOString().split("T")[0],
       r.quantity,
       r.machine?.name || "",
-      r.inspector?.email || "",
+      r.machine?.assignedInspector?.email || "",
     ].join(","));
 
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine,assignedInspector",
       ...rows,
     ].join("\n");
 

@@ -13,7 +13,13 @@ interface BarcodeReference {
   estimatedTime: number;
   deadline: string;
   quantity: number;
-  machine?: { id: string; name: string; type: string; status: string } | null;
+  machine?: { 
+    id: string; 
+    name: string; 
+    type: string; 
+    status: string;
+    assignedInspector?: { id: string; name: string; email: string } | null;
+  } | null;
   inspector?: { id: string; name: string; email: string } | null;
   uploadedBy: { id: string; name: string; email: string };
   createdAt: string;
@@ -162,16 +168,17 @@ export default function BarcodeReferencePage() {
     {
       key: "inspector",
       header: "Inspector",
-      render: (item: BarcodeReference) => (
-        item.inspector ? (
+      render: (item: BarcodeReference) => {
+        const inspector = item.machine?.assignedInspector;
+        return inspector ? (
           <div className="text-sm">
-            <p className="font-medium">{item.inspector.name}</p>
-            <p className="text-gray-400 text-xs">{item.inspector.email}</p>
+            <p className="font-medium">{inspector.name}</p>
+            <p className="text-gray-400 text-xs">{inspector.email}</p>
           </div>
         ) : (
-          <span className="text-gray-400 text-sm italic">Available</span>
-        )
-      ),
+          <span className="text-gray-400 text-sm italic">Not assigned</span>
+        );
+      },
     },
     {
       key: "estimatedTime",

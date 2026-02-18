@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Parse CSV
     const header = lines[0].split(",").map((h) => h.trim());
     const requiredHeaders = ["partNumber", "barcode", "estimatedTime", "deadline", "quantity"];
-    const optionalHeaders = ["machine", "inspector"];
+    const optionalHeaders = ["machine"];
 
     const missingHeaders = requiredHeaders.filter((h) => !header.includes(h));
     if (missingHeaders.length > 0) {
@@ -100,24 +100,6 @@ export async function POST(req: NextRequest) {
         machineId = machine.id;
       }
 
-      // Validate inspector if provided
-      let inspectorId: string | undefined;
-      if (rowData.inspector && rowData.inspector.trim()) {
-        const inspector = await prisma.user.findUnique({
-          where: { email: rowData.inspector.trim() },
-          select: { id: true, role: true },
-        });
-        if (!inspector) {
-          errors.push({ row: i + 1, error: `Inspector '${rowData.inspector}' not found` });
-          continue;
-        }
-        if (inspector.role !== "INSPECTOR") {
-          errors.push({ row: i + 1, error: `User '${rowData.inspector}' is not an inspector` });
-          continue;
-        }
-        inspectorId = inspector.id;
-      }
-
       data.push({
         partNumber: rowData.partNumber,
         barcode: rowData.barcode,
@@ -125,7 +107,6 @@ export async function POST(req: NextRequest) {
         deadline,
         quantity,
         machineId,
-        inspectorId,
       });
     }
 
@@ -154,7 +135,6 @@ export async function POST(req: NextRequest) {
             deadline: item.deadline,
             quantity: item.quantity,
             machineId: item.machineId ?? null,
-            inspectorId: item.inspectorId ?? null,
             uploadedById: session.user.id,
           } as any,
           create: {
@@ -164,7 +144,6 @@ export async function POST(req: NextRequest) {
             deadline: item.deadline,
             quantity: item.quantity,
             machineId: item.machineId ?? null,
-            inspectorId: item.inspectorId ?? null,
             uploadedById: session.user.id,
           } as any,
         });

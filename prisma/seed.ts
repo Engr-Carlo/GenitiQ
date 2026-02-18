@@ -155,6 +155,23 @@ async function main() {
   console.log(`✅ Created ${machines.length} machines`);
 
   // ──────────────────────────────────────────────
+  // 2.5. Assign Inspectors to Machines
+  // ──────────────────────────────────────────────
+  const inspectorUsers = users.filter((u: typeof users[number]) => u.role === "INSPECTOR");
+  
+  // Assign inspectors to active machines
+  const activeMachines = machines.filter((m: typeof machines[number]) => m.status === "ACTIVE");
+  for (let i = 0; i < activeMachines.length; i++) {
+    const inspector = inspectorUsers[i % inspectorUsers.length];
+    await prisma.machine.update({
+      where: { id: activeMachines[i].id },
+      data: { assignedInspectorId: inspector.id },
+    });
+  }
+
+  console.log(`✅ Assigned inspectors to ${activeMachines.length} active machines`);
+
+  // ──────────────────────────────────────────────
   // 3. Parts
   // ──────────────────────────────────────────────
   const partNumbers = Array.from({ length: 30 }, (_, i) => `PN${(1001 + i).toString()}`);
@@ -202,13 +219,6 @@ async function main() {
         const machineIndex = i % machines.length;
         const assignedMachine = machines[machineIndex];
         
-        // Assign inspector to ~60% of parts (only inspectors, not operators)
-        const inspectorUsers = users.filter((u: typeof users[number]) => u.role === "INSPECTOR");
-        const assignInspector = Math.random() < 0.6;
-        const assignedInspector = assignInspector 
-          ? inspectorUsers[i % inspectorUsers.length] 
-          : null;
-        
         return prisma.partReference.create({
           data: {
             partNumber: part.partNumber,
@@ -217,7 +227,6 @@ async function main() {
             deadline: deadline,
             quantity: 1,
             machineId: assignedMachine.id,
-            inspectorId: assignedInspector?.id || null,
             uploadedById: users[0].id, // Admin user
           },
         });

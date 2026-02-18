@@ -99,6 +99,7 @@ model User {
   scannedParts       Part[]             @relation("ScannedByUser")
   partReferences     PartReference[]    @relation("PartReferenceUploader")
   inspectorReferences PartReference[]   @relation("InspectorPartReferences")
+  assignedMachines   Machine[]          @relation("MachineInspector")
 
   @@index([email])
   @@index([role])
@@ -111,10 +112,12 @@ model Machine {
   type             MachineType
   status           MachineStatus @default(ACTIVE)
   location         String?
-  specifications   Json?
-  currentSessionId String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  specifications      Json?
+  currentSessionId    String?
+  assignedInspectorId String?
+  assignedInspector   User?         @relation("MachineInspector", fields: [assignedInspectorId], references: [id])
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   inspections      Inspection[]
   inspectionQueues InspectionQueue[]
@@ -125,6 +128,7 @@ model Machine {
 
   @@index([status])
   @@index([type])
+  @@index([assignedInspectorId])
 }
 
 model Part {
