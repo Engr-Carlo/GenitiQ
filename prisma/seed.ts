@@ -239,7 +239,7 @@ async function main() {
   // 4. Queue items (first 10 parts)
   // ──────────────────────────────────────────────
   const priorities = ["HIGH", "MEDIUM", "LOW"] as const;
-  const activeMachines = machines.filter((m: typeof machines[number]) => m.status === "ACTIVE");
+  const activeMachinesForQueue = machines.filter((m: typeof machines[number]) => m.status === "ACTIVE");
 
   const queueItems = await Promise.all(
     parts.slice(0, 10).map((part: typeof parts[number], i: number) => {
@@ -252,9 +252,9 @@ async function main() {
       return prisma.inspectionQueue.create({
         data: {
           partId: part.id,
-          machineId: activeMachines[i % activeMachines.length].id,
+          machineId: activeMachinesForQueue[i % activeMachinesForQueue.length].id,
           priority: priorities[i % 3],
-          position: Math.floor(i / activeMachines.length) + 1,
+          position: Math.floor(i / activeMachinesForQueue.length) + 1,
           estimatedTime: 10 + Math.floor(Math.random() * 20),
           status: isCompleted ? "COMPLETED" : "WAITING",
           scannedAt: isCompleted ? new Date(now - startOffset) : null,
