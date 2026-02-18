@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
-import { hasPermission, UserRole } from "@/lib/rbac";
+import { UserRole } from "@/types";
 
 // PATCH /api/admin/machines/[id]/status — Update machine status (admin only)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!hasPermission(session.user.role as UserRole, "MANAGE_MACHINES")) {
+  if (session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Forbidden - Admin only" }, { status: 403 });
   }
 
@@ -61,8 +61,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: {
         userId: session.user.id,
         action: "UPDATE_MACHINE_STATUS",
-        entity: "MACHINE",
-        entityId: machineId,
         details: `Changed machine ${machine.name} status from ${machine.status} to ${status}`,
       },
     });

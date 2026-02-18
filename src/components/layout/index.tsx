@@ -99,6 +99,18 @@ const NAV_ITEMS: NavItem[] = [
         roles: [UserRole.ADMIN],
       },
       {
+        label: "Barcode Reference",
+        href: "/dashboard/settings/barcode-reference",
+        icon: <FileText size={18} />,
+        roles: [UserRole.ADMIN],
+      },
+      {
+        label: "Machine Inspectors",
+        href: "/dashboard/settings/machine-inspectors",
+        icon: <Users size={18} />,
+        roles: [UserRole.ADMIN],
+      },
+      {
         label: "Audit Logs",
         href: "/dashboard/settings/audit-logs",
         icon: <FileText size={18} />,
@@ -184,6 +196,20 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
                     User Accounts
                   </Link>
                   <Link
+                    href="/dashboard/settings/barcode-reference"
+                    className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                    onClick={() => setShowSettings(false)}
+                  >
+                    Barcode Reference
+                  </Link>
+                  <Link
+                    href="/dashboard/settings/machine-inspectors"
+                    className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                    onClick={() => setShowSettings(false)}
+                  >
+                    Machine Inspectors
+                  </Link>
+                  <Link
                     href="/dashboard/settings/audit-logs"
                     className="block px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 font-medium"
                     onClick={() => setShowSettings(false)}
@@ -196,6 +222,7 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
                     onClick={() => setShowSettings(false)}
                   >
                     Machine Reports
+                  </Link>
                   </Link>
                 </div>
               )}
