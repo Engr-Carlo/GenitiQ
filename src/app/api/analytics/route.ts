@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         totalMachines,
       },
       recentInspections,
-      machineUtilization: machineUtilization.map((m) => ({
+      machineUtilization: machineUtilization.map((m: typeof machineUtilization[number]) => ({
         id: m.id,
         name: m.name,
         type: m.type,

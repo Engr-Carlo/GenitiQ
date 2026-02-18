@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     orderBy: { name: "asc" },
   });
 
-  let result = machines.map((m) => {
+  let result = machines.map((m: typeof machines[number]) => {
     const activeSession = m.sessions[0] || null;
     return {
       id: m.id,
@@ -54,14 +54,14 @@ export async function GET(req: NextRequest) {
 
   // Filter by active session if requested
   if (hasActiveSession === "true") {
-    result = result.filter((m) => m.hasActiveSession);
+    result = result.filter((m: typeof result[number]) => m.hasActiveSession);
   } else if (hasActiveSession === "false") {
-    result = result.filter((m) => !m.hasActiveSession);
+    result = result.filter((m: typeof result[number]) => !m.hasActiveSession);
   }
 
   // For operators: only show their own machine session details
   if (session.user.role === "OPERATOR") {
-    result = result.map((m) => {
+    result = result.map((m: typeof result[number]) => {
       const isOwnMachine = m.currentSession?.operatorId === session.user.id;
       return {
         ...m,

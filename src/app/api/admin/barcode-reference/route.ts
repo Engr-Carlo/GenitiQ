@@ -49,8 +49,7 @@ export async function GET(req: NextRequest) {
 
   // If download=current, export current data as CSV
   if (download === "current") {
-    // @ts-ignore
-    const rows = references.map((r: any) => [
+    const rows = references.map((r: typeof references[number]) => [
       r.partNumber,
       r.barcode,
       r.estimatedTime,

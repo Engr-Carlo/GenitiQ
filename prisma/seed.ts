@@ -182,10 +182,10 @@ async function main() {
   // 4. Queue items (first 10 parts)
   // ──────────────────────────────────────────────
   const priorities = ["HIGH", "MEDIUM", "LOW"] as const;
-  const activeMachines = machines.filter((m) => m.status === "ACTIVE");
+  const activeMachines = machines.filter((m: typeof machines[number]) => m.status === "ACTIVE");
 
   const queueItems = await Promise.all(
-    parts.slice(0, 10).map((part, i) => {
+    parts.slice(0, 10).map((part: typeof parts[number], i: number) => {
       const now = Date.now();
       // Make some items COMPLETED with timing data for historical analytics
       const isCompleted = i >= 7;
@@ -220,7 +220,7 @@ async function main() {
                     "ACCEPTED", "ACCEPTED", "ACCEPTED", "REJECTED", "ACCEPTED"] as const;
 
   const inspections = await Promise.all(
-    parts.slice(20).map((part, i) => {
+    parts.slice(20).map((part: typeof parts[number], i: number) => {
       const dayOffset = (10 - i) * 24 * 60 * 60 * 1000;
       const createdAt = new Date(Date.now() - dayOffset);
       const opDuration = 8 + Math.floor(Math.random() * 20); // 8-28 min

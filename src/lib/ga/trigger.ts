@@ -72,22 +72,19 @@ export async function runGAOptimization(
     _avg: { queueActualTime: true },
     where: { queueActualTime: { not: null } },
   });
-  // @ts-ignore
-  const timingMap = new Map(machineTimings.map((t: any) => [t.machineId, t._avg.queueActualTime || 15]));
+  const timingMap = new Map(machineTimings.map((t: typeof machineTimings[number]) => [t.machineId, t._avg.queueActualTime || 15]));
 
   // 4. Run optimizer
   const optimizer = new GeneticQueueOptimizer(
     gaConfig,
-    // @ts-ignore
-    machines.map((m: any) => ({
+    machines.map((m: typeof machines[number]) => ({
       id: m.id,
       cycleTime: timingMap.get(m.id) || 15,
       status: m.status,
       hasActiveSession: !!m.currentSessionId,
       avgHistoricalTime: timingMap.get(m.id),
     })),
-    // @ts-ignore
-    queueItems.map((qi: any) => ({
+    queueItems.map((qi: typeof queueItems[number]) => ({
       id: qi.id,
       priority: PRIORITY_MAP[qi.priority] || 1,
       estimatedTime: qi.estimatedTime || 15,
@@ -99,8 +96,7 @@ export async function runGAOptimization(
 
   // 5. Persist new queue ordering to DB
   const assignments = result.bestChromosome.genes.map((gene) => {
-    // @ts-ignore
-    const _qi = queueItems.find((q: any) => q.id === gene.partId);
+    const _qi = queueItems.find((q: typeof queueItems[number]) => q.id === gene.partId);
     return {
       partId: gene.partId,
       machineId: gene.machineId,
