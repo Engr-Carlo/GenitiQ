@@ -187,6 +187,9 @@ async function main() {
   // ──────────────────────────────────────────────
   // 3.5. Barcode References (all parts)
   // ──────────────────────────────────────────────
+  // Clear existing barcode references to avoid duplicates
+  await prisma.partReference.deleteMany({});
+  
   const barcodeReferences = await Promise.all(
     parts
       .filter((part) => part.barcodeData) // Only create references for parts with barcodes
@@ -195,13 +198,8 @@ async function main() {
         deadline.setDate(deadline.getDate() + 30 + Math.floor(Math.random() * 60)); // 30-90 days from now
         const estimatedTime = 15 + Math.floor(Math.random() * 30); // 15-45 minutes
         
-        return prisma.partReference.upsert({
-          where: { barcode: part.barcodeData! },
-          update: {
-            deadline: deadline,
-            estimatedTime: estimatedTime,
-          },
-          create: {
+        return prisma.partReference.create({
+          data: {
             partNumber: part.partNumber,
             barcode: part.barcodeData!,
             estimatedTime: estimatedTime,
