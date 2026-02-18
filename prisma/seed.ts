@@ -317,7 +317,7 @@ async function main() {
   const sessionData = [
     { machineId: machines[0].id, operatorId: users[3].id, hoursAgo: 48, durationMin: 240, items: 14, status: "COMPLETED" as const },
     { machineId: machines[1].id, operatorId: users[4].id, hoursAgo: 24, durationMin: 180, items: 10, status: "COMPLETED" as const },
-    { machineId: machines[6].id, operatorId: users[3].id, hoursAgo: 12, durationMin: 120, items: 7, status: "COMPLETED" as const },
+    { machineId: machines[3].id, operatorId: users[3].id, hoursAgo: 12, durationMin: 120, items: 7, status: "COMPLETED" as const },
   ];
 
   const sessions = await Promise.all(
