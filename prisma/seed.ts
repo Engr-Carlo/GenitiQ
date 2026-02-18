@@ -160,20 +160,23 @@ async function main() {
   const partNumbers = Array.from({ length: 30 }, (_, i) => `PN${(1001 + i).toString()}`);
 
   const parts = await Promise.all(
-    partNumbers.map((pn, i) =>
-      prisma.part.upsert({
+    partNumbers.map((pn, i) => {
+      const barcode = String(1000000000 + Math.floor(Math.random() * 9000000000)); // 10-digit numeric barcode
+      return prisma.part.upsert({
         where: { partNumber: pn },
-        update: {},
+        update: {
+          barcodeData: barcode,
+        },
         create: {
           partNumber: pn,
           name: `Component ${pn}`,
           description: `Test component for inspection`,
           status: i < 10 ? "QUEUED" : i < 20 ? "IN_INSPECTION" : i < 23 ? "FOR_REVIEW" : "ACCEPTED",
           currentMachineId: i < 10 ? machines[i % machines.length].id : null,
-          barcodeData: String(1000000000 + Math.floor(Math.random() * 9000000000)), // 10-digit numeric barcode
+          barcodeData: barcode,
         },
-      })
-    )
+      });
+    })
   );
 
   console.log(`✅ Created ${parts.length} parts (with numeric barcodes)`);
