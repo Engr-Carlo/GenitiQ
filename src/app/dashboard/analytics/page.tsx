@@ -126,8 +126,7 @@ export default function AnalyticsPage() {
                 {[
                   { name: "VMM-1", type: "VMM", inspections: 245, defectRate: "2.0%", cycle: "12 min", util: "87%" },
                   { name: "VMM-2", type: "VMM", inspections: 198, defectRate: "2.5%", cycle: "15 min", util: "72%" },
-                  { name: "VMM-5", type: "VMM", inspections: 156, defectRate: "1.9%", cycle: "14 min", util: "65%" },
-                  { name: "VMM-6", type: "VMM", inspections: 289, defectRate: "3.1%", cycle: "11 min", util: "91%" },
+                  { name: "VMM-3", type: "VMM", inspections: 156, defectRate: "1.9%", cycle: "14 min", util: "65%" },
                   { name: "CMM-1", type: "CMM", inspections: 178, defectRate: "2.2%", cycle: "22 min", util: "78%" },
                   { name: "CMM-2", type: "CMM", inspections: 218, defectRate: "2.8%", cycle: "25 min", util: "82%" },
                 ].map((m) => (

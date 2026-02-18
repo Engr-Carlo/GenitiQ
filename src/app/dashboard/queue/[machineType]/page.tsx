@@ -26,15 +26,10 @@ const machinesMock: Record<string, Array<{
     { id: "vmm-1", name: "VMM-1", status: "ACTIVE", currentPart: "PN1001", queueLength: 5, avgCycleTime: "12 min", utilization: "87%" },
     { id: "vmm-2", name: "VMM-2", status: "ACTIVE", currentPart: "PN1003", queueLength: 3, avgCycleTime: "15 min", utilization: "72%" },
     { id: "vmm-3", name: "VMM-3", status: "IDLE", currentPart: null, queueLength: 0, avgCycleTime: "—", utilization: "0%" },
-    { id: "vmm-4", name: "VMM-4", status: "MAINTENANCE", currentPart: null, queueLength: 0, avgCycleTime: "—", utilization: "0%" },
-    { id: "vmm-5", name: "VMM-5", status: "ACTIVE", currentPart: "PN1010", queueLength: 4, avgCycleTime: "14 min", utilization: "65%" },
-    { id: "vmm-6", name: "VMM-6", status: "ACTIVE", currentPart: "PN1012", queueLength: 6, avgCycleTime: "11 min", utilization: "91%" },
   ],
   cmm: [
     { id: "cmm-1", name: "CMM-1", status: "ACTIVE", currentPart: "PN2001", queueLength: 4, avgCycleTime: "22 min", utilization: "78%" },
     { id: "cmm-2", name: "CMM-2", status: "ACTIVE", currentPart: "PN2005", queueLength: 3, avgCycleTime: "25 min", utilization: "82%" },
-    { id: "cmm-3", name: "CMM-3", status: "IDLE", currentPart: null, queueLength: 0, avgCycleTime: "—", utilization: "0%" },
-    { id: "cmm-4", name: "CMM-4", status: "SHUTDOWN", currentPart: null, queueLength: 0, avgCycleTime: "—", utilization: "0%" },
   ],
 };
 

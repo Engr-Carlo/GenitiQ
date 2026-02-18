@@ -12,7 +12,7 @@ const machineTypes = [
     description: "Optical non-contact measurement for precision components with visual inspection capabilities.",
     icon: <Scan size={48} strokeWidth={1.5} />,
     color: "from-primary-500 to-primary-700",
-    count: 6,
+    count: 3,
   },
   {
     id: "cmm",
@@ -21,7 +21,7 @@ const machineTypes = [
     description: "Contact-based 3D measurement for high-precision dimensional inspection of machined parts.",
     icon: <Cpu size={48} strokeWidth={1.5} />,
     color: "from-navy-600 to-navy-800",
-    count: 4,
+    count: 2,
   },
 ];
 

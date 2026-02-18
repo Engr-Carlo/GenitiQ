@@ -11,8 +11,8 @@ const mockInspections = [
   { id: "2", partNumber: "PN1003", inspector: "A. Santos", machine: "VMM-2", result: "REJECTED" as const, date: "Jan 23, 2026", time: "10:30 AM", qaStatus: "Pending" },
   { id: "3", partNumber: "PN1005", inspector: "J. Dela Cruz", machine: "CMM-1", result: "ACCEPTED" as const, date: "Jan 23, 2026", time: "11:00 AM", qaStatus: "N/A" },
   { id: "4", partNumber: "PN1007", inspector: "A. Santos", machine: "CMM-2", result: "REJECTED" as const, date: "Jan 22, 2026", time: "02:45 PM", qaStatus: "Override" },
-  { id: "5", partNumber: "PN1010", inspector: "J. Dela Cruz", machine: "VMM-5", result: "ACCEPTED" as const, date: "Jan 22, 2026", time: "04:20 PM", qaStatus: "N/A" },
-  { id: "6", partNumber: "PN1012", inspector: "J. Dela Cruz", machine: "VMM-6", result: "ACCEPTED" as const, date: "Jan 21, 2026", time: "08:00 AM", qaStatus: "N/A" },
+  { id: "5", partNumber: "PN1010", inspector: "J. Dela Cruz", machine: "VMM-1", result: "ACCEPTED" as const, date: "Jan 22, 2026", time: "04:20 PM", qaStatus: "N/A" },
+  { id: "6", partNumber: "PN1012", inspector: "J. Dela Cruz", machine: "VMM-2", result: "ACCEPTED" as const, date: "Jan 21, 2026", time: "08:00 AM", qaStatus: "N/A" },
   { id: "7", partNumber: "PN1015", inspector: "V. De Jose", machine: "VMM-3", result: "REJECTED" as const, date: "Jan 21, 2026", time: "10:10 AM", qaStatus: "Re-inspect" },
   { id: "8", partNumber: "PN1018", inspector: "A. Santos", machine: "CMM-1", result: "ACCEPTED" as const, date: "Jan 20, 2026", time: "01:30 PM", qaStatus: "N/A" },
 ];
