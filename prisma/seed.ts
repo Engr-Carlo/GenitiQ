@@ -35,8 +35,6 @@ async function main() {
   await prisma.auditLog.deleteMany({});
   await prisma.inspection.deleteMany({});
   await prisma.partReference.deleteMany({});
-  await prisma.inspectionQueue.deleteMany({});
-  await prisma.part.deleteMany({});
   await prisma.machineSession.deleteMany({});
   await prisma.machineReport.deleteMany({});
   await prisma.shutdownEvent.deleteMany({});
@@ -269,21 +267,6 @@ async function main() {
       const operator = operators[scannedCount % operators.length];
       scannedCount++;
 
-      // Create Part record
-      const part = await prisma.part.create({
-        data: {
-          partNumber:  def.pn,
-          name:        `Component ${def.pn}`,
-          description: "Production part",
-          status: def.qa
-            ? (def.qa === "APPROVED" || def.qa === "OVERRIDE_ACCEPT" ? "ACCEPTED" : "REJECTED")
-            : "FOR_REVIEW",
-          barcodeData: def.bc,
-          scannedAt:   opEnd,
-          scannedById: operator.id,
-        },
-      });
-
       // Inspector review timing (only if QA decision exists)
       let inspStartedAt:    Date | null = null;
       let inspCompletedAt:  Date | null = null;
@@ -307,7 +290,6 @@ async function main() {
       // Create Inspection record
       const inspection = await prisma.inspection.create({
         data: {
-          partId:               part.id,
           inspectorId:          inspector.id,
           machineId:            machine.id,
           result:               def.opResult!,

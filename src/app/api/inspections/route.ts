@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     prisma.inspection.findMany({
       where,
       include: {
-        part: true,
+        partReference: true,
         machine: { select: { id: true, name: true, type: true } },
         inspector: { select: { id: true, name: true } },
         qaReviewer: { select: { id: true, name: true } },
@@ -45,39 +45,20 @@ export async function GET(req: NextRequest) {
     prisma.inspection.count({ where }),
   ]);
 
-  // Enrich inspections with PartReference data (estimatedTime, deadline, quantity, priority)
-  const barcodes = inspections
-    .map((i) => i.scannedBarcode)
-    .filter((b): b is string => !!b);
-
-  const partRefMap: Record<string, { estimatedTime: number; deadline: Date; quantity: number; priority: string }> = {};
-  if (barcodes.length > 0) {
-    const refs = await prisma.partReference.findMany({
-      where: { barcode: { in: barcodes } },
-      select: { barcode: true, estimatedTime: true, deadline: true, quantity: true },
-    });
-    for (const ref of refs) {
-      // Calculate GA-based priority from deadline urgency, estimatedTime, quantity
+  // Compute GA priority from partReference data
+  const enrichedInspections = inspections.map((insp) => {
+    const ref = insp.partReference;
+    let priority: string | null = null;
+    if (ref) {
       const hoursToDeadline = (ref.deadline.getTime() - Date.now()) / (1000 * 60 * 60);
       const urgencyScore = Math.max(0, 100 - hoursToDeadline / 2);
       const complexityScore = (ref.estimatedTime / 60) * 50 + (ref.quantity / 10) * 50;
       const fitness = urgencyScore * 0.6 + complexityScore * 0.4;
-      const priority = (fitness > 70 || hoursToDeadline < 24) ? "HIGH"
+      priority = (fitness > 70 || hoursToDeadline < 24) ? "HIGH"
         : (fitness > 40 || hoursToDeadline < 72) ? "MEDIUM" : "LOW";
-
-      partRefMap[ref.barcode] = {
-        estimatedTime: ref.estimatedTime,
-        deadline: ref.deadline,
-        quantity: ref.quantity,
-        priority,
-      };
     }
-  }
-
-  const enrichedInspections = inspections.map((insp) => ({
-    ...insp,
-    partRef: insp.scannedBarcode ? partRefMap[insp.scannedBarcode] || null : null,
-  }));
+    return { ...insp, priority };
+  });
 
   return NextResponse.json({
     data: enrichedInspections,
@@ -91,51 +72,32 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { partId, machineId, result, measurements, notes, queueItemId } = body;
+  const { machineId, result, notes, scannedBarcode } = body;
 
-  if (!partId || !machineId || !result) {
+  if (!machineId || !result) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
   // Create inspection
   const inspection = await prisma.inspection.create({
     data: {
-      partId,
       machineId,
       inspectorId: session.user.id,
       result,
-      measurements: measurements || null,
       notes: notes || null,
+      scannedBarcode: scannedBarcode || null,
     },
     include: {
-      part: true,
       machine: { select: { name: true } },
     },
   });
-
-  // Update part status
-  await prisma.part.update({
-    where: { id: partId },
-    data: {
-      status: result === "ACCEPTED" ? "ACCEPTED" : result === "REJECTED" ? "REJECTED" : "FOR_REVIEW",
-      currentMachineId: machineId,
-    },
-  });
-
-  // Remove from queue if queue item exists
-  if (queueItemId) {
-    await prisma.inspectionQueue.update({
-      where: { id: queueItemId },
-      data: { status: "COMPLETED" },
-    });
-  }
 
   // Create audit log
   await prisma.auditLog.create({
     data: {
       userId: session.user.id,
       action: "SUBMIT_INSPECTION",
-      details: `Inspection for part ${inspection.part.partNumber} on ${inspection.machine.name}: ${result}`,
+      details: `Inspection on ${inspection.machine.name}: ${result}`,
     },
   });
 

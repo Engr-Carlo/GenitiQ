@@ -62,11 +62,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { currentSessionId: machineSession.id, status: "ACTIVE" },
   });
 
-  // Fetch next queue item for this machine
-  const nextQueueItem = await prisma.inspectionQueue.findFirst({
-    where: { machineId, status: "WAITING" },
-    include: { part: true },
-    orderBy: { position: "asc" },
+  // Fetch next unscanned PartReference for this machine
+  const nextPartRef = await prisma.partReference.findFirst({
+    where: { machineId, isScanned: false },
+    orderBy: [{ deadline: "asc" }, { createdAt: "asc" }],
   });
 
   // Audit log
@@ -81,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   return NextResponse.json({
     data: {
       session: machineSession,
-      nextQueueItem,
+      nextPartRef,
     },
     message: `Checked into ${machine.name}`,
   });

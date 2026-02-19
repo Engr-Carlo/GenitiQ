@@ -18,11 +18,6 @@ export async function GET(req: NextRequest) {
         select: { id: true, name: true, type: true, status: true, location: true },
       },
       operator: { select: { id: true, name: true, accountId: true } },
-      queueItems: {
-        where: { status: "COMPLETED" },
-        select: { id: true, queueActualTime: true, queueCompletedAt: true },
-        orderBy: { queueCompletedAt: "desc" },
-      },
     },
   });
 
@@ -30,38 +25,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: null, message: "No active session" });
   }
 
-  // Get next queue item for this machine
-  const nextQueueItem = await prisma.inspectionQueue.findFirst({
-    where: {
-      machineId: activeSession.machineId,
-      status: "WAITING",
-    },
-    include: { part: true },
-    orderBy: { position: "asc" },
+  // Next unscanned PartReference for this machine
+  const nextPartRef = await prisma.partReference.findFirst({
+    where: { machineId: activeSession.machineId, isScanned: false },
+    orderBy: [{ deadline: "asc" }, { createdAt: "asc" }],
   });
 
-  // Get current in-progress item
-  const currentItem = await prisma.inspectionQueue.findFirst({
-    where: {
-      machineId: activeSession.machineId,
-      assignedOperatorId: session.user.id,
-      status: "IN_PROGRESS",
-    },
-    include: { part: true },
-  });
-
-  // Queue items waiting count
-  const waitingCount = await prisma.inspectionQueue.count({
-    where: { machineId: activeSession.machineId, status: "WAITING" },
+  // Count pending (unscanned) parts for this machine
+  const pendingCount = await prisma.partReference.count({
+    where: { machineId: activeSession.machineId, isScanned: false },
   });
 
   return NextResponse.json({
     data: {
       session: activeSession,
-      currentItem,
-      nextQueueItem,
-      waitingCount,
-      itemsCompletedCount: activeSession.queueItems.length,
+      nextPartRef,
+      pendingCount,
+      itemsCompleted: activeSession.itemsCompleted,
     },
   });
 }

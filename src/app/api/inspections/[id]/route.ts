@@ -35,45 +35,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       inspectionActualTime,
     },
     include: {
-      part: true,
+      partReference: true,
       inspector: { select: { name: true } },
     },
   });
-
-  // Update part status based on QA decision
-  const newPartStatus = qaDecision === "OVERRIDE_ACCEPT"
-    ? "ACCEPTED"
-    : qaDecision === "OVERRIDE_REJECT"
-    ? "REJECTED"
-    : qaDecision === "RE_INSPECT"
-    ? "QUEUED"
-    : inspection.result === "ACCEPTED"
-    ? "ACCEPTED"
-    : "REJECTED";
-
-  await prisma.part.update({
-    where: { id: inspection.partId },
-    data: { status: newPartStatus },
-  });
-
-  // If re-inspect, add back to queue
-  if (qaDecision === "RE_INSPECT") {
-    await prisma.inspectionQueue.create({
-      data: {
-        partId: inspection.partId,
-        machineId: inspection.machineId,
-        priority: "HIGH",
-        status: "WAITING",
-        position: 1, // Top of queue
-      },
-    });
-  }
 
   await prisma.auditLog.create({
     data: {
       userId: session.user.id,
       action: "QA_OVERRIDE",
-      details: `QA decision for part ${inspection.part.partNumber}: ${qaDecision} — ${qaJustification}`,
+      details: `QA decision for part ${inspection.partReference?.partNumber ?? inspection.scannedBarcode}: ${qaDecision} — ${qaJustification}`,
     },
   });
 

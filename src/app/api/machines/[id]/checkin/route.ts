@@ -18,7 +18,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
     include: {
       machine: { select: { name: true, type: true } },
-      queueItems: { where: { status: "COMPLETED" } },
+      inspections: { where: { result: { not: undefined } } },
     },
   });
 
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const endTime = new Date();
   const durationMs = endTime.getTime() - activeSession.startTime.getTime();
   const durationMinutes = Math.round(durationMs / 60000);
+  const itemsCompleted = activeSession.inspections.length;
 
   // End the session
   const completedSession = await prisma.machineSession.update({
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: {
       endTime,
       status: "COMPLETED",
-      itemsCompleted: activeSession.queueItems.length,
+      itemsCompleted,
     },
   });
 
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: {
       userId: session.user.id,
       action: "MACHINE_CHECKIN",
-      details: `Checked out of ${activeSession.machine.name} — Session: ${durationMinutes} min, ${activeSession.queueItems.length} items completed`,
+      details: `Checked out of ${activeSession.machine.name} — Session: ${durationMinutes} min, ${itemsCompleted} items completed`,
     },
   });
 
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       session: completedSession,
       summary: {
         duration: durationMinutes,
-        itemsCompleted: activeSession.queueItems.length,
+        itemsCompleted,
         machineName: activeSession.machine.name,
       },
     },

@@ -1,25 +1,18 @@
 /**
  * GA Trigger — orchestrates the optimization flow.
- * Called by API routes when a re-optimization is requested.
+ * Uses PartReference (unscanned) as the source of parts to optimize.
  */
 
 import { GeneticQueueOptimizer, DEFAULT_GA_CONFIG } from "./optimizer";
 import { GAConfig, OptimizationResult } from "./types";
 import { prisma } from "@/lib/db";
 
-// Priority mapping
-const PRIORITY_MAP: Record<string, number> = {
-  HIGH: 3,
-  MEDIUM: 2,
-  LOW: 1,
-};
-
 /**
  * Runs the GA optimizer for a specific machine type (VMM or CMM).
- * 1. Fetches active machines + pending parts from DB
+ * 1. Fetches active machines + pending (unscanned) PartReferences from DB
  * 2. Loads GA configuration or uses defaults
  * 3. Runs optimizer
- * 4. Persists new queue ordering back to DB
+ * 4. Persists new position ordering back to PartReference
  */
 export async function runGAOptimization(
   machineType: "VMM" | "CMM",
@@ -27,30 +20,30 @@ export async function runGAOptimization(
 ): Promise<OptimizationResult> {
   const startTime = Date.now();
 
-  // 1. Fetch available machines (ACTIVE or IDLE) for this type, with session info
+  // 1. Fetch available machines for this type
   const machines = await prisma.machine.findMany({
     where: { type: machineType, status: { in: ["ACTIVE", "IDLE"] } },
-    select: {
-      id: true,
-      name: true,
-      status: true,
-      currentSessionId: true,
-    },
+    select: { id: true, name: true, status: true, currentSessionId: true },
   });
 
-  // 2. Fetch pending queue items
-  const queueItems = await prisma.inspectionQueue.findMany({
+  // 2. Fetch unscanned PartReferences for this machine type
+  const pendingRefs = await prisma.partReference.findMany({
     where: {
       machine: { type: machineType },
-      status: "WAITING",
+      isScanned: false,
     },
-    include: { part: true, machine: true },
+    select: {
+      id: true,
+      machineId: true,
+      estimatedTime: true,
+      deadline: true,
+      quantity: true,
+      machine: true,
+    },
   });
 
   // 3. Load GA config from DB (or defaults)
-  const dbConfig = await prisma.gAConfiguration.findFirst({
-    where: { isActive: true },
-  });
+  const dbConfig = await prisma.gAConfiguration.findFirst({ where: { isActive: true } });
 
   const gaConfig: Partial<GAConfig> = configOverride || {
     populationSize: dbConfig?.populationSize ?? DEFAULT_GA_CONFIG.populationSize,
@@ -66,78 +59,71 @@ export async function runGAOptimization(
     },
   };
 
-  // 3b. Fetch historical average times per machine for better estimates
-  const machineTimings = await prisma.inspectionQueue.groupBy({
+  // 3b. Historical average times per machine from Inspection records
+  const machineTimings = await prisma.inspection.groupBy({
     by: ["machineId"],
-    _avg: { queueActualTime: true },
-    where: { queueActualTime: { not: null } },
+    _avg: { operatorActualTime: true },
+    where: { operatorActualTime: { not: null } },
   });
-  const timingMap = new Map(machineTimings.map((t: typeof machineTimings[number]) => [t.machineId, t._avg.queueActualTime || 15]));
+  const timingMap = new Map(machineTimings.map((t) => [t.machineId, t._avg.operatorActualTime || 15]));
 
-  // 4. Run optimizer
+  // 4. Build priority scores using GA algorithm (deadline urgency + complexity)
+  const refPriority = (ref: typeof pendingRefs[number]): number => {
+    const hoursToDeadline = (ref.deadline.getTime() - Date.now()) / (1000 * 60 * 60);
+    const urgencyScore = Math.max(0, 100 - hoursToDeadline / 2);
+    const complexityScore = (ref.estimatedTime / 60) * 50 + (ref.quantity / 10) * 50;
+    const fitness = urgencyScore * 0.6 + complexityScore * 0.4;
+    if (fitness > 70 || hoursToDeadline < 24) return 3; // HIGH
+    if (fitness > 40 || hoursToDeadline < 72) return 2; // MEDIUM
+    return 1; // LOW
+  };
+
+  // 5. Run optimizer
   const optimizer = new GeneticQueueOptimizer(
     gaConfig,
-    machines.map((m: typeof machines[number]) => ({
+    machines.map((m) => ({
       id: m.id,
       cycleTime: timingMap.get(m.id) || 15,
       status: m.status,
       hasActiveSession: !!m.currentSessionId,
       avgHistoricalTime: timingMap.get(m.id),
     })),
-    queueItems.map((qi: typeof queueItems[number]) => ({
-      id: qi.id,
-      priority: PRIORITY_MAP[qi.priority] || 1,
-      estimatedTime: qi.estimatedTime || 15,
+    pendingRefs.map((ref) => ({
+      id: ref.id,
+      priority: refPriority(ref),
+      estimatedTime: ref.estimatedTime || 15,
     }))
   );
 
   const result = optimizer.optimize();
   const executionTimeMs = Date.now() - startTime;
 
-  // 5. Persist new queue ordering to DB
-  const assignments = result.bestChromosome.genes.map((gene) => {
-    const _qi = queueItems.find((q: typeof queueItems[number]) => q.id === gene.partId);
-    return {
-      partId: gene.partId,
-      machineId: gene.machineId,
-      position: gene.position,
-      estimatedWaitTime: gene.position * 15, // rough estimate
-    };
-  });
+  // 6. Persist new position ordering back to PartReference
+  const assignments = result.bestChromosome.genes.map((gene) => ({
+    partId: gene.partId,
+    machineId: gene.machineId,
+    position: gene.position,
+    estimatedWaitTime: gene.position * 15,
+  }));
 
-  // Batch-update the queue positions
   await Promise.all(
     assignments.map((a) =>
-      prisma.inspectionQueue.update({
+      prisma.partReference.update({
         where: { id: a.partId },
-        data: {
-          machineId: a.machineId,
-          position: a.position,
-        },
+        data: { machineId: a.machineId, position: a.position },
       })
     )
   );
 
-  return {
-    assignments,
-    fitness: result.fitness,
-    generations: result.generations,
-    executionTimeMs,
-  };
+  return { assignments, fitness: result.fitness, generations: result.generations, executionTimeMs };
 }
 
 /**
- * Quick helper to check if re-optimization is needed.
- * Triggers automatically when new parts are added or machine status changes.
+ * Check if re-optimization is needed (at least 2 unscanned parts for a machine type).
  */
 export async function shouldReoptimize(machineType: "VMM" | "CMM"): Promise<boolean> {
-  const pendingCount = await prisma.inspectionQueue.count({
-    where: {
-      machine: { type: machineType },
-      status: "WAITING",
-    },
+  const pendingCount = await prisma.partReference.count({
+    where: { machine: { type: machineType }, isScanned: false },
   });
-
-  // Only run if there are at least 2 items to optimize
   return pendingCount >= 2;
 }

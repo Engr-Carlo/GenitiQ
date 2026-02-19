@@ -12,9 +12,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const machine = await prisma.machine.findUnique({
     where: { id },
     include: {
-      inspectionQueues: {
-        where: { status: "WAITING" },
-        include: { part: true },
+      partReferences: {
+        where: { isScanned: false },
         orderBy: { position: "asc" },
       },
       shutdownEvents: {

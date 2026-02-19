@@ -1,3 +1,13 @@
+import { NextResponse } from "next/server";
+
+// Deprecated — InspectionQueue removed. Operators work directly through barcode scanning.
+export async function PATCH() {
+  return NextResponse.json(
+    { error: "Deprecated. Use POST /api/operator/submit-inspection instead." },
+    { status: 410 }
+  );
+}
+/* DEAD CODE BELOW — kept for reference only
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
@@ -117,3 +127,4 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     message: `Inspection completed for ${queueItem.part.partNumber}: ${result}`,
   });
 }
+*/

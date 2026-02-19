@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         _count: {
-          select: { inspectionQueues: { where: { status: "WAITING" } } },
+          select: { partReferences: { where: { isScanned: false } } },
         },
         sessions: {
           where: { status: "ACTIVE" },
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
         currentSessionId: m.currentSessionId,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
-        queueLength: m._count.inspectionQueues,
+        queueLength: m._count.partReferences,
         currentSession: activeSession,
         currentOperator: activeSession?.operator || null,
         hasActiveSession: !!activeSession,

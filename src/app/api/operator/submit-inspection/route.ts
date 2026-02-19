@@ -44,21 +44,6 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Find or create Part record
-    let part = await prisma.part.findFirst({
-      where: { partNumber: reference.partNumber },
-    });
-
-    if (!part) {
-      part = await prisma.part.create({
-        data: {
-          partNumber: reference.partNumber,
-          description: `Part scanned from barcode ${reference.barcode}`,
-          status: "PENDING",
-        },
-      });
-    }
-
     // Calculate operator time (in minutes)
     const operatorStartedAt = new Date(timeIn);
     const operatorCompletedAt = new Date();
@@ -67,8 +52,7 @@ export async function POST(req: NextRequest) {
     // Create Inspection record
     const inspection = await prisma.inspection.create({
       data: {
-        partId: part.id,
-        inspectorId: reference.inspectorId || session.user.id, // Use assigned inspector or current user
+        inspectorId: reference.inspectorId || session.user.id,
         machineId: reference.machineId,
         machineSessionId: machineSession?.id,
         result: result as "ACCEPTED" | "REJECTED",
@@ -79,7 +63,6 @@ export async function POST(req: NextRequest) {
         notes: notes || null,
       },
       include: {
-        part: true,
         inspector: { select: { id: true, name: true } },
         machine: { select: { id: true, name: true, type: true } },
       },

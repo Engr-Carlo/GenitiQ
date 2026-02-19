@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     const inspection = await prisma.inspection.findUnique({
       where: { id: inspectionId },
       include: {
-        part: true,
+        partReference: true,
         machine: true,
         inspector: { select: { name: true } },
       },
@@ -59,54 +59,19 @@ export async function POST(req: NextRequest) {
         inspectionActualTime,
       },
       include: {
-        part: true,
         machine: { select: { id: true, name: true, type: true } },
         inspector: { select: { id: true, name: true } },
         qaReviewer: { select: { id: true, name: true } },
+        partReference: true,
       },
     });
-
-    // Update part status based on final decision
-    let partStatus = inspection.part.status;
-    if (qaDecision === "APPROVED") {
-      // Keep operator's original decision
-      partStatus = inspection.result === "ACCEPTED" ? "ACCEPTED" : "REJECTED";
-    } else if (qaDecision === "OVERRIDE_ACCEPT") {
-      partStatus = "ACCEPTED";
-    } else if (qaDecision === "OVERRIDE_REJECT") {
-      partStatus = "REJECTED";
-    } else if (qaDecision === "RE_INSPECT") {
-      partStatus = "FOR_REVIEW";
-    }
-
-    await prisma.part.update({
-      where: { id: inspection.partId },
-      data: { status: partStatus },
-    });
-
-    // Update inspector's machine session items completed (if they have an active session)
-    const inspectorSession = await prisma.machineSession.findFirst({
-      where: {
-        operatorId: session.user.id,
-        status: "ACTIVE",
-      },
-    });
-
-    if (inspectorSession) {
-      await prisma.machineSession.update({
-        where: { id: inspectorSession.id },
-        data: {
-          itemsCompleted: { increment: 1 },
-        },
-      });
-    }
 
     // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: "INSPECTOR_REVIEW",
-        details: `Inspector ${qaDecision} part ${inspection.part.partNumber} (Operator: ${inspection.result})`,
+        details: `Inspector ${qaDecision} part ${inspection.partReference?.partNumber || inspection.scannedBarcode} (Operator: ${inspection.result})`,
       },
     });
 

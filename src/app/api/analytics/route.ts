@@ -29,8 +29,8 @@ export async function GET(req: NextRequest) {
     prisma.inspection.count({ where: { createdAt: { gte: since } } }),
     prisma.inspection.count({ where: { createdAt: { gte: since }, result: "ACCEPTED" } }),
     prisma.inspection.count({ where: { createdAt: { gte: since }, result: "REJECTED" } }),
-    prisma.part.count(),
-    prisma.part.count({ where: { status: "QUEUED" } }),
+    prisma.partReference.count(),
+    prisma.partReference.count({ where: { isScanned: false } }),
     prisma.machine.count({ where: { status: "ACTIVE" } }),
     prisma.machine.count(),
     prisma.inspection.findMany({
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       include: {
         machine: { select: { name: true, type: true } },
         inspector: { select: { name: true } },
-        part: { select: { partNumber: true } },
+        partReference: { select: { partNumber: true } },
       },
       orderBy: { createdAt: "desc" },
       take: 10,
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
         _count: {
           select: {
             inspections: { where: { createdAt: { gte: since } } },
-            inspectionQueues: { where: { status: "WAITING" } },
+            partReferences: { where: { isScanned: false } },
           },
         },
       },
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
         name: m.name,
         type: m.type,
         inspectionCount: m._count.inspections,
-        queuedCount: m._count.inspectionQueues,
+        unscannedCount: m._count.partReferences,
       })),
     },
   });

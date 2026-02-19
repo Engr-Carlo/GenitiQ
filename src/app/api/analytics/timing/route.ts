@@ -18,25 +18,22 @@ export async function GET(req: NextRequest) {
   const since = new Date();
   since.setDate(since.getDate() - days);
 
-  // Queue timing (operator work)
-  const queueTimingWhere: any = {
-    queueCompletedAt: { not: null },
-    queueStartedAt: { gte: since },
+  // Operator timing — from Inspection.operatorActualTime
+  const operatorTimingWhere: any = {
+    operatorCompletedAt: { not: null },
+    operatorStartedAt: { gte: since },
   };
-  if (machineId) queueTimingWhere.machineId = machineId;
-  if (operatorId) queueTimingWhere.assignedOperatorId = operatorId;
+  if (machineId) operatorTimingWhere.machineId = machineId;
 
-  const completedQueueItems = await prisma.inspectionQueue.findMany({
-    where: queueTimingWhere,
+  const completedOperatorItems = await prisma.inspection.findMany({
+    where: operatorTimingWhere,
     select: {
-      queueActualTime: true,
-      estimatedTime: true,
+      operatorActualTime: true,
       machineId: true,
-      assignedOperatorId: true,
+      machineSession: { select: { operator: { select: { name: true } } } },
       machine: { select: { name: true, type: true } },
-      assignedOperator: { select: { name: true } },
-      queueStartedAt: true,
-      queueCompletedAt: true,
+      operatorCompletedAt: true,
+      operatorStartedAt: true,
     },
   });
 
@@ -74,29 +71,29 @@ export async function GET(req: NextRequest) {
   });
 
   // Calculate aggregates
-  const queueTimes = completedQueueItems.map((q: typeof completedQueueItems[number]) => q.queueActualTime || 0).filter(Boolean);
+  const operatorTimes = completedOperatorItems.map((q: typeof completedOperatorItems[number]) => q.operatorActualTime || 0).filter(Boolean);
   const inspectionTimes = completedInspections.map((i: typeof completedInspections[number]) => i.inspectionActualTime || 0).filter(Boolean);
-  const avgQueueTime = queueTimes.length > 0 ? queueTimes.reduce((a: number, b: number) => a + b, 0) / queueTimes.length : 0;
+  const avgOperatorTime = operatorTimes.length > 0 ? operatorTimes.reduce((a: number, b: number) => a + b, 0) / operatorTimes.length : 0;
   const avgInspectionTime = inspectionTimes.length > 0 ? inspectionTimes.reduce((a: number, b: number) => a + b, 0) / inspectionTimes.length : 0;
-  const totalCycleTime = avgQueueTime + avgInspectionTime;
+  const totalCycleTime = avgOperatorTime + avgInspectionTime;
 
   // Per-machine breakdown
-  const machineMap: Record<string, { name: string; queueTimes: number[]; inspectionTimes: number[] }> = {};
-  completedQueueItems.forEach((q: typeof completedQueueItems[number]) => {
-    if (!machineMap[q.machineId]) machineMap[q.machineId] = { name: q.machine.name, queueTimes: [], inspectionTimes: [] };
-    if (q.queueActualTime) machineMap[q.machineId].queueTimes.push(q.queueActualTime);
+  const machineMap: Record<string, { name: string; operatorTimes: number[]; inspectionTimes: number[] }> = {};
+  completedOperatorItems.forEach((q: typeof completedOperatorItems[number]) => {
+    if (!machineMap[q.machineId]) machineMap[q.machineId] = { name: q.machine.name, operatorTimes: [], inspectionTimes: [] };
+    if (q.operatorActualTime) machineMap[q.machineId].operatorTimes.push(q.operatorActualTime);
   });
   completedInspections.forEach((i: typeof completedInspections[number]) => {
-    if (!machineMap[i.machineId]) machineMap[i.machineId] = { name: i.machine.name, queueTimes: [], inspectionTimes: [] };
+    if (!machineMap[i.machineId]) machineMap[i.machineId] = { name: i.machine.name, operatorTimes: [], inspectionTimes: [] };
     if (i.inspectionActualTime) machineMap[i.machineId].inspectionTimes.push(i.inspectionActualTime);
   });
 
   const perMachine = Object.entries(machineMap).map(([id, data]) => ({
     machineId: id,
     machineName: data.name,
-    avgQueueTime: data.queueTimes.length > 0 ? Math.round(data.queueTimes.reduce((a, b) => a + b, 0) / data.queueTimes.length) : 0,
+    avgOperatorTime: data.operatorTimes.length > 0 ? Math.round(data.operatorTimes.reduce((a, b) => a + b, 0) / data.operatorTimes.length) : 0,
     avgInspectionTime: data.inspectionTimes.length > 0 ? Math.round(data.inspectionTimes.reduce((a, b) => a + b, 0) / data.inspectionTimes.length) : 0,
-    itemsCompleted: data.queueTimes.length,
+    itemsCompleted: data.operatorTimes.length,
   }));
 
   // Active sessions
@@ -111,10 +108,10 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     data: {
       summary: {
-        avgQueueTime: Math.round(avgQueueTime * 10) / 10,
+        avgOperatorTime: Math.round(avgOperatorTime * 10) / 10,
         avgInspectionTime: Math.round(avgInspectionTime * 10) / 10,
         totalCycleTime: Math.round(totalCycleTime * 10) / 10,
-        totalItemsCompleted: queueTimes.length,
+        totalItemsCompleted: operatorTimes.length,
         totalSessions: sessions.length,
       },
       perMachine,

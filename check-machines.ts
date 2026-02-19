@@ -11,7 +11,7 @@ async function checkMachines() {
         _count: {
           select: {
             sessions: true,
-            inspectionQueues: true,
+            partReferences: true,
           },
         },
       },
@@ -31,7 +31,7 @@ async function checkMachines() {
         console.log(`- ${m.name} (${m.type})`);
         console.log(`  Status: ${m.status}`);
         console.log(`  Location: ${m.location || "N/A"}`);
-        console.log(`  Sessions: ${m._count.sessions}, Queue Items: ${m._count.inspectionQueues}`);
+        console.log(`  Sessions: ${m._count.sessions}, Unscanned Parts: ${m._count.partReferences}`);
         console.log("");
       });
     }
