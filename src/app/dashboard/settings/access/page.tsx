@@ -40,15 +40,6 @@ export default function ManageAccessPage() {
     position: "",
   });
 
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    role: "OPERATOR" as "OPERATOR" | "INSPECTOR",
-    department: "",
-    position: "",
-  });
-
   useEffect(() => {
     fetchUsers();
   }, []);
