@@ -243,13 +243,13 @@ export default function InspectorDashboardPage() {
       // Calculate KPIs
       const all = inspectionsData.data || [];
       const total = all.length;
-      const passed = all.filter((i: any) => i.result === "ACCEPTED").length;
+      const passed = all.filter((i: InspectionForReview) => i.operatorResult === "ACCEPTED").length;
       const today = new Date().toDateString();
-      const todayCount = all.filter((i: any) => new Date(i.createdAt).toDateString() === today).length;
-      const withReview = all.filter((i: any) => i.qaDecision).length;
-      const overrides = all.filter((i: any) => i.qaDecision && i.qaDecision.startsWith("OVERRIDE")).length;
-      const opTimes = all.filter((i: any) => i.operatorActualTime).map((i: any) => i.operatorActualTime);
-      const reviewTimes = all.filter((i: any) => i.inspectionActualTime).map((i: any) => i.inspectionActualTime);
+      const todayCount = all.filter((i: InspectionForReview) => new Date(i.createdAt).toDateString() === today).length;
+      const withReview = all.filter((i: InspectionForReview) => i.qaDecision).length;
+      const overrides = all.filter((i: InspectionForReview) => i.qaDecision && i.qaDecision.startsWith("OVERRIDE")).length;
+      const opTimes = all.filter((i: InspectionForReview) => i.operatorActualTime).map((i: InspectionForReview) => i.operatorActualTime!);
+      const reviewTimes = all.filter((i: InspectionForReview) => i.inspectionActualTime).map((i: InspectionForReview) => i.inspectionActualTime!);
 
       setKpis({
         totalInspections: total,
@@ -404,14 +404,6 @@ export default function InspectorDashboardPage() {
       setReportSubmitting(false);
     }
   };
-
-  // Fetch machines on load
-  useEffect(() => {
-    if (activeTab === "machines") {
-      fetchMachines();
-      fetchSession();
-    }
-  }, [activeTab]);
 
   const priorityColors: Record<string, "danger" | "warning" | "info" | "gray"> = {
     HIGH: "danger",
