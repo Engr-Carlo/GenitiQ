@@ -21,13 +21,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing barcodeReferenceId" }, { status: 400 });
     }
 
-    // Update the PartReference to mark as scanned
+    // Mark the PartReference as scanned — status moves to PENDING (already is, tracking only)
     const updated = await prisma.partReference.update({
       where: { id: barcodeReferenceId },
       data: {
-        isScanned: true,
-        scannedAt: new Date(),
-        scannedById: session.user.id,
+        operatorId: session.user.id,
       },
     });
 

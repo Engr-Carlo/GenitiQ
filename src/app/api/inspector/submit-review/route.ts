@@ -2,91 +2,90 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-// POST /api/inspector/submit-review — Inspector submits accept/reject decision for operator's inspection
+// POST /api/inspector/submit-review — Inspector QA decision on PartReference
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.user.role !== "INSPECTOR") {
+  if (session.user.role !== "INSPECTOR" && session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Only inspectors can submit reviews" }, { status: 403 });
   }
 
   try {
     const body = await req.json();
-    const { inspectionId, qaDecision, qaJustification, timeIn } = body;
+    // Accept both partReferenceId (new) and inspectionId (legacy key)
+    const partRefId = body.partReferenceId || body.inspectionId;
+    const { qaDecision, qaJustification, timeIn } = body;
 
-    if (!inspectionId || !qaDecision) {
+    if (!partRefId || !qaDecision) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const validDecisions = ["APPROVED", "OVERRIDE_ACCEPT", "OVERRIDE_REJECT", "RE_INSPECT"];
+    const validDecisions = ["APPROVED", "OVERRIDE_ACCEPT", "CONFIRMED_REJECT", "RE_INSPECT"];
     if (!validDecisions.includes(qaDecision)) {
       return NextResponse.json({ error: "Invalid QA decision" }, { status: 400 });
     }
 
-    // Get the inspection
-    const inspection = await prisma.inspection.findUnique({
-      where: { id: inspectionId },
-      include: {
-        partReference: true,
-        machine: true,
-        inspector: { select: { name: true } },
-      },
+    const part = await prisma.partReference.findUnique({
+      where: { id: partRefId },
+      include: { machine: true },
     });
 
-    if (!inspection) {
-      return NextResponse.json({ error: "Inspection not found" }, { status: 404 });
+    if (!part) {
+      return NextResponse.json({ error: "Part not found" }, { status: 404 });
+    }
+    if (part.status !== "OPERATOR_DONE") {
+      return NextResponse.json({ error: `Can only review OPERATOR_DONE parts (current: ${part.status})` }, { status: 400 });
     }
 
-    if (inspection.qaDecision) {
-      return NextResponse.json({ error: "Inspection already reviewed" }, { status: 400 });
-    }
+    const inspectorTimeIn = timeIn ? new Date(timeIn) : new Date();
+    const inspectorTimeOut = new Date();
+    const inspectorActualTime = Math.round((inspectorTimeOut.getTime() - inspectorTimeIn.getTime()) / 60000);
 
-    // Calculate inspector time (in minutes)
-    const inspectionStartedAt = timeIn ? new Date(timeIn) : new Date();
-    const inspectionCompletedAt = new Date();
-    const inspectionActualTime = Math.round((inspectionCompletedAt.getTime() - inspectionStartedAt.getTime()) / 60000);
+    const isReInspect = qaDecision === "RE_INSPECT";
+    const newStatus = isReInspect ? "RE_INSPECT" : "COMPLETED";
 
-    // Update inspection with inspector's review
-    const updatedInspection = await prisma.inspection.update({
-      where: { id: inspectionId },
+    const updated = await prisma.partReference.update({
+      where: { id: partRefId },
       data: {
+        qaDecision,
         qaReviewerId: session.user.id,
-        qaDecision: qaDecision as "APPROVED" | "OVERRIDE_ACCEPT" | "OVERRIDE_REJECT" | "RE_INSPECT",
         qaJustification: qaJustification || null,
-        qaReviewedAt: new Date(),
-        inspectionStartedAt,
-        inspectionCompletedAt,
-        inspectionActualTime,
-      },
-      include: {
-        machine: { select: { id: true, name: true, type: true } },
-        inspector: { select: { id: true, name: true } },
-        qaReviewer: { select: { id: true, name: true } },
-        partReference: true,
+        qaReviewedAt: inspectorTimeOut,
+        inspectorTimeIn,
+        inspectorTimeOut,
+        inspectorActualTime,
+        status: newStatus,
+        ...(isReInspect && {
+          operatorResult: null,
+          operatorTimeIn: null,
+          operatorTimeOut: null,
+          operatorActualTime: null,
+          operatorNotes: null,
+        }),
       },
     });
 
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: "INSPECTOR_REVIEW",
-        details: `Inspector ${qaDecision} part ${inspection.partReference?.partNumber || inspection.scannedBarcode} (Operator: ${inspection.result})`,
+        details: `Inspector ${qaDecision} part ${part.partNumber} (${part.barcode})`,
       },
     });
 
     return NextResponse.json({
       success: true,
       data: {
-        inspection: updatedInspection,
-        timeIn: inspectionStartedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        timeOut: inspectionCompletedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        duration: `${inspectionActualTime} min`,
+        part: updated,
+        partNumber: part.partNumber,
+        timeIn: inspectorTimeIn.toISOString(),
+        timeOut: inspectorTimeOut.toISOString(),
+        duration: `${inspectorActualTime} min`,
       },
     });
   } catch (error: unknown) {
     console.error("Inspector submit review error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Failed to submit review";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Failed to submit review";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

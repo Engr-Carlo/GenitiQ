@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       where,
       include: {
         _count: {
-          select: { partReferences: { where: { isScanned: false } } },
+          select: { partReferences: { where: { status: "PENDING" } } },
         },
         sessions: {
           where: { status: "ACTIVE" },

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     where: { id },
     include: {
       partReferences: {
-        where: { isScanned: false },
+        where: { status: "PENDING" },
         orderBy: { position: "asc" },
       },
       shutdownEvents: {

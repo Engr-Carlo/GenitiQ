@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const partNumber = searchParams.get("partNumber");
   const barcode = searchParams.get("barcode");
 
-  const where: any = { isScanned: true };
+  const where: any = { status: { not: "PENDING" } };
   if (partNumber) where.partNumber = { contains: partNumber, mode: "insensitive" };
   if (barcode) where.barcode = { contains: barcode, mode: "insensitive" };
 
@@ -29,11 +29,11 @@ export async function GET(req: NextRequest) {
         machine: { select: { id: true, name: true, type: true, status: true } },
         inspector: { select: { id: true, name: true, email: true } },
         uploadedBy: { select: { id: true, name: true, email: true } },
-        scannedByOperator: { select: { id: true, name: true, email: true } },
+        operator: { select: { id: true, name: true, email: true } },
       },
       skip: (page - 1) * limit,
       take: limit,
-      orderBy: { scannedAt: "desc" },
+      orderBy: { updatedAt: "desc" },
     }),
     prisma.partReference.count({ where }),
   ]);

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     include: {
       machine: { select: { id: true, name: true, type: true, status: true, location: true } },
       operator: { select: { id: true, name: true, accountId: true } },
-      inspections: {
+      partReferences: {
         orderBy: { updatedAt: "desc" },
         take: 10,
       },

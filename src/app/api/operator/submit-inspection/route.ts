@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-// POST /api/operator/submit-inspection — Operator submits accept/reject decision
+// POST /api/operator/submit-inspection — Operator submits accept/reject on PartReference
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -12,104 +12,90 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { barcodeReferenceId, result, timeIn, notes } = body;
+    // Accept both partReferenceId (new) and barcodeReferenceId (legacy) 
+    const partRefId = body.partReferenceId || body.barcodeReferenceId;
+    const { result, timeIn, notes } = body;
 
-    if (!barcodeReferenceId || !result) {
+    if (!partRefId || !result) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
-
     if (result !== "ACCEPTED" && result !== "REJECTED") {
       return NextResponse.json({ error: "Result must be ACCEPTED or REJECTED" }, { status: 400 });
     }
 
-    // Get the barcode reference
-    const reference = await prisma.partReference.findUnique({
-      where: { id: barcodeReferenceId },
+    // Find PartReference
+    const ref = await prisma.partReference.findUnique({
+      where: { id: partRefId },
       include: { machine: true, inspector: true },
     });
 
-    if (!reference) {
-      return NextResponse.json({ error: "Barcode reference not found" }, { status: 404 });
+    if (!ref) {
+      return NextResponse.json({ error: "Part not found" }, { status: 404 });
+    }
+    if (ref.status !== "PENDING" && ref.status !== "RE_INSPECT") {
+      return NextResponse.json({ error: `Part already processed (status: ${ref.status})` }, { status: 400 });
     }
 
-    if (!reference.machineId) {
-      return NextResponse.json({ error: "No machine assigned to this part" }, { status: 400 });
-    }
-
-    // Get operator's active session
+    // Get operator's active session (optional)
     const machineSession = await prisma.machineSession.findFirst({
-      where: {
-        operatorId: session.user.id,
-        status: "ACTIVE",
-      },
+      where: { operatorId: session.user.id, status: "ACTIVE" },
     });
 
-    // Calculate operator time (in minutes)
-    const operatorStartedAt = new Date(timeIn);
-    const operatorCompletedAt = new Date();
-    const operatorActualTime = Math.round((operatorCompletedAt.getTime() - operatorStartedAt.getTime()) / 60000);
+    const operatorTimeIn = new Date(timeIn);
+    const operatorTimeOut = new Date();
+    const operatorActualTime = Math.round((operatorTimeOut.getTime() - operatorTimeIn.getTime()) / 60000);
 
-    // Create Inspection record
-    const inspection = await prisma.inspection.create({
+    // Update PartReference with operator fields — no separate Inspection record
+    const updated = await prisma.partReference.update({
+      where: { id: partRefId },
       data: {
-        inspectorId: reference.inspectorId || session.user.id,
-        machineId: reference.machineId,
-        machineSessionId: machineSession?.id,
-        result: result as "ACCEPTED" | "REJECTED",
-        operatorStartedAt,
-        operatorCompletedAt,
+        status: "OPERATOR_DONE",
+        operatorId: session.user.id,
+        operatorResult: result,
+        operatorTimeIn,
+        operatorTimeOut,
         operatorActualTime,
-        scannedBarcode: reference.barcode,
-        notes: notes || null,
+        operatorNotes: notes || null,
+        machineSessionId: machineSession?.id ?? null,
       },
       include: {
-        inspector: { select: { id: true, name: true } },
-        machine: { select: { id: true, name: true, type: true } },
+        machine: { select: { name: true } },
+        inspector: { select: { name: true } },
       },
     });
 
-    // Update PartReference to mark as processed and link to inspection
-    await prisma.partReference.update({
-      where: { id: barcodeReferenceId },
-      data: {
-        isScanned: true,
-        scannedAt: new Date(),
-        scannedById: session.user.id,
-        inspectionId: inspection.id,
-      },
-    });
-
-    // Update machine session items completed
+    // Increment session counter
     if (machineSession) {
       await prisma.machineSession.update({
         where: { id: machineSession.id },
-        data: {
-          itemsCompleted: { increment: 1 },
-        },
+        data: { itemsCompleted: { increment: 1 } },
       });
     }
 
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: "OPERATOR_INSPECTION",
-        details: `Operator ${result.toLowerCase()} part ${reference.partNumber} (${reference.barcode})`,
+        details: `Operator ${result.toLowerCase()} part ${ref.partNumber} (${ref.barcode})`,
       },
     });
 
     return NextResponse.json({
       success: true,
       data: {
-        inspection,
-        timeIn: operatorStartedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        timeOut: operatorCompletedAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        partNumber: updated.partNumber,
+        barcode: updated.barcode,
+        result,
+        machineName: updated.machine?.name ?? null,
+        inspectorName: updated.inspector?.name ?? null,
+        timeIn: operatorTimeIn.toISOString(),
+        timeOut: operatorTimeOut.toISOString(),
         duration: `${operatorActualTime} min`,
       },
     });
   } catch (error: unknown) {
     console.error("Operator submit inspection error:", error);
-    const errorMessage = error instanceof Error ? error.message : "Failed to submit inspection";
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Failed to submit inspection";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

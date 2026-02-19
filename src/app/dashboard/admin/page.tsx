@@ -14,7 +14,7 @@ import {
 } from "@/components/charts";
 import {
   Cpu, Activity, Users, Clock, Timer,
-  CheckCircle2, AlertTriangle, TrendingUp, ScanBarcode, Package,
+  CheckCircle2, AlertTriangle, TrendingUp, ScanBarcode, Package, Download,
 } from "lucide-react";
 
 // ============================================================
@@ -44,8 +44,7 @@ interface PartReferenceItem {
   estimatedTime: number;
   deadline: string;
   quantity: number;
-  isScanned: boolean;
-  scannedAt: string | null;
+  status: string;
   machine?: { id: string; name: string; type: string; status: string } | null;
   inspector?: { id: string; name: string; email: string } | null;
   uploadedBy: { id: string; name: string; email: string };
@@ -69,6 +68,7 @@ export default function AdminDashboardPage() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [timing, setTiming] = useState<TimingData>({ avgQueueTime: null, avgInspectionTime: null, totalCycleTime: null });
   const [partReferences, setPartReferences] = useState<PartReferenceItem[]>([]);
+  const [downloadingCsv, setDownloadingCsv] = useState(false);
 
   if (session?.user?.role !== "ADMIN") {
     redirect("/dashboard");
@@ -120,16 +120,34 @@ export default function AdminDashboardPage() {
         setActiveSessions(sessions);
       }
 
-      // Part references — only show unscanned
+      // Part references — only show PENDING (not yet scanned by operator)
       if (partRefRes.ok) {
         const partRefData = await partRefRes.json();
-        const unscanned = (partRefData.data || []).filter((r: PartReferenceItem) => !r.isScanned);
-        setPartReferences(unscanned);
+        const pending = (partRefData.data || []).filter((r: PartReferenceItem) => r.status === "PENDING" || !r.status);
+        setPartReferences(pending);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    setDownloadingCsv(true);
+    try {
+      const res = await fetch("/api/admin/barcode-reference?download=template");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "barcode-reference-template.csv";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("CSV download failed:", e);
+    } finally {
+      setDownloadingCsv(false);
     }
   };
 
@@ -334,17 +352,30 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Part Reference Table — only unscanned */}
+      {/* Part Reference Table */}
       <div>
-        <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
-          <Package size={22} className="text-primary-600" />
-          Part Reference Table
-          <Badge variant="info" className="ml-2">{partReferences.length} pending</Badge>
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 flex items-center gap-2">
+            <Package size={22} className="text-primary-600" />
+            Part Reference Table
+            <Badge variant="info" className="ml-2">{partReferences.length} pending</Badge>
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Download size={16} />}
+            onClick={handleDownloadTemplate}
+            loading={downloadingCsv}
+            disabled={downloadingCsv}
+            className="font-bold"
+          >
+            Download CSV Template
+          </Button>
+        </div>
         <p className="text-sm text-gray-500 mb-3">
-          Parts awaiting operator scan. Scanned parts are automatically hidden.
+          Parts awaiting operator scan. Fill the CSV template and upload to add new parts.
         </p>
-        <DataTable columns={partRefColumns} data={partReferences} emptyMessage="All barcodes have been scanned!" />
+        <DataTable columns={partRefColumns} data={partReferences} emptyMessage="No pending parts. Download the CSV template, fill it in, and upload to add parts." />
       </div>
 
       {/* Inspection Results Table */}

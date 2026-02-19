@@ -185,8 +185,8 @@ export default function InspectorDashboardPage() {
       const reviewData = await reviewRes.json();
       const mapInspection = (item: any): InspectionForReview => ({
         id: item.id,
-        partNumber: item.part?.partNumber || "-",
-        operatorName: item.inspector?.name || "-",
+        partNumber: item.partNumber || "-",
+        operatorName: item.operatorName || "-",
         operatorResult: item.result,
         machineName: item.machine?.name || "-",
         machineType: item.machine?.type || "-",
@@ -201,11 +201,11 @@ export default function InspectorDashboardPage() {
         inspectionStartedAt: item.inspectionStartedAt,
         inspectionCompletedAt: item.inspectionCompletedAt,
         inspectionActualTime: item.inspectionActualTime,
-        partId: item.partId,
-        estimatedTime: item.partRef?.estimatedTime ?? null,
-        deadline: item.partRef?.deadline ?? null,
-        quantity: item.partRef?.quantity ?? null,
-        priority: item.partRef?.priority ?? null,
+        partId: item.id,  // PartReference id IS the id
+        estimatedTime: item.estimatedTime ?? null,
+        deadline: item.deadline ?? null,
+        quantity: item.quantity ?? null,
+        priority: item.priority ?? null,
       });
       const formattedReview = (reviewData.data || []).map(mapInspection);
       setReviewItems(formattedReview);

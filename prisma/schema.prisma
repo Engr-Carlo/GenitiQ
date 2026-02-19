@@ -30,7 +30,14 @@ enum MachineStatus {
   SHUTDOWN
 }
 
-enum InspectionResult {
+enum PartStatus {
+  PENDING
+  OPERATOR_DONE
+  RE_INSPECT
+  COMPLETED
+}
+
+enum OperatorResult {
   ACCEPTED
   REJECTED
 }
@@ -65,17 +72,16 @@ model User {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  inspections        Inspection[]       @relation("InspectorInspections")
-  qaReviews          Inspection[]       @relation("QAReviewerInspections")
-  machineReports     MachineReport[]
-  shutdownEvents     ShutdownEvent[]
-  auditLogs          AuditLog[]
-  gaConfigUpdates    GAConfiguration[]  @relation("GAConfigUpdater")
-  machineSessions    MachineSession[]   @relation("OperatorSessions")
-  partReferences     PartReference[]    @relation("PartReferenceUploader")
-  scannedReferences  PartReference[]    @relation("ScannedPartReferences")
-  inspectorReferences PartReference[]   @relation("InspectorPartReferences")
-  assignedMachines   Machine[]          @relation("MachineInspector")
+  uploadedParts    PartReference[]   @relation("PartReferenceUploader")
+  operatedParts    PartReference[]   @relation("OperatorPartReferences")
+  reviewedParts    PartReference[]   @relation("QAReviewerPartReferences")
+  assignedParts    PartReference[]   @relation("InspectorPartReferences")
+  machineSessions  MachineSession[]  @relation("OperatorSessions")
+  machineReports   MachineReport[]
+  shutdownEvents   ShutdownEvent[]
+  auditLogs        AuditLog[]
+  gaConfigUpdates  GAConfiguration[] @relation("GAConfigUpdater")
+  assignedMachines Machine[]         @relation("MachineInspector")
 
   @@index([email])
   @@index([role])
@@ -83,11 +89,11 @@ model User {
 }
 
 model Machine {
-  id               String        @id @default(cuid())
-  name             String        @unique
-  type             MachineType
-  status           MachineStatus @default(ACTIVE)
-  location         String?
+  id                  String        @id @default(cuid())
+  name                String        @unique
+  type                MachineType
+  status              MachineStatus @default(ACTIVE)
+  location            String?
   specifications      Json?
   currentSessionId    String?
   assignedInspectorId String?
@@ -95,11 +101,10 @@ model Machine {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  inspections      Inspection[]
-  machineReports   MachineReport[]
-  shutdownEvents   ShutdownEvent[]
-  sessions         MachineSession[]
-  partReferences   PartReference[]    @relation("MachinePartReferences")
+  partReferences PartReference[]  @relation("MachinePartReferences")
+  machineReports MachineReport[]
+  shutdownEvents ShutdownEvent[]
+  sessions       MachineSession[]
 
   @@index([status])
   @@index([type])
@@ -107,98 +112,78 @@ model Machine {
 }
 
 model PartReference {
-  id            String   @id @default(cuid())
+  id            String  @id @default(cuid())
   partNumber    String
-  barcode       String   @unique
-  estimatedTime Int      // in minutes
+  barcode       String  @unique
+  estimatedTime Int
   deadline      DateTime
-  quantity      Int      @default(1)
-  machineId     String?
-  machine       Machine? @relation("MachinePartReferences", fields: [machineId], references: [id])
-  inspectorId   String?
-  inspector     User?    @relation("InspectorPartReferences", fields: [inspectorId], references: [id])
-  uploadedById  String
-  uploadedBy    User     @relation("PartReferenceUploader", fields: [uploadedById], references: [id])
-  
-  // Scanning tracking
-  isScanned     Boolean  @default(false)
-  scannedAt     DateTime?
-  scannedById   String?
-  scannedByOperator User? @relation("ScannedPartReferences", fields: [scannedById], references: [id])
-  inspectionId  String?   @unique
-  inspection    Inspection? @relation(fields: [inspectionId], references: [id])
-  position      Int      @default(0)
+  quantity      Int     @default(1)
+  position      Int     @default(0)
+  priority      String?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  machineId   String?
+  machine     Machine? @relation("MachinePartReferences", fields: [machineId], references: [id])
+  inspectorId String?
+  inspector   User?    @relation("InspectorPartReferences", fields: [inspectorId], references: [id])
+  uploadedById String
+  uploadedBy   User    @relation("PartReferenceUploader", fields: [uploadedById], references: [id])
+
+  status PartStatus @default(PENDING)
+
+  operatorId         String?
+  operator           User?           @relation("OperatorPartReferences", fields: [operatorId], references: [id])
+  operatorTimeIn     DateTime?
+  operatorTimeOut    DateTime?
+  operatorActualTime Int?
+  operatorResult     OperatorResult?
+  operatorNotes      String?
+  machineSessionId   String?
+  machineSession     MachineSession? @relation(fields: [machineSessionId], references: [id])
+
+  qaReviewerId        String?
+  qaReviewer          User?       @relation("QAReviewerPartReferences", fields: [qaReviewerId], references: [id])
+  qaDecision          QADecision?
+  qaJustification     String?
+  qaReviewedAt        DateTime?
+  inspectorTimeIn     DateTime?
+  inspectorTimeOut    DateTime?
+  inspectorActualTime Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([partNumber])
   @@index([barcode])
   @@index([deadline])
   @@index([machineId])
-  @@index([isScanned])
-  @@index([inspectionId])
+  @@index([status])
+  @@index([operatorId])
+  @@index([qaReviewerId])
+  @@index([machineSessionId])
+  @@index([inspectorId])
 }
 
 model MachineSession {
-  id          String        @id @default(cuid())
-  machineId   String
-  machine     Machine       @relation(fields: [machineId], references: [id])
-  operatorId  String
-  operator    User          @relation("OperatorSessions", fields: [operatorId], references: [id])
-  startTime   DateTime      @default(now())
-  endTime     DateTime?
-  status      SessionStatus @default(ACTIVE)
-  itemsCompleted Int        @default(0)
-  notes       String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  machineId      String
+  machine        Machine       @relation(fields: [machineId], references: [id])
+  operatorId     String
+  operator       User          @relation("OperatorSessions", fields: [operatorId], references: [id])
+  startTime      DateTime      @default(now())
+  endTime        DateTime?
+  status         SessionStatus @default(ACTIVE)
+  itemsCompleted Int           @default(0)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
-  inspections Inspection[]
+  partReferences PartReference[]
 
   @@index([machineId])
   @@index([operatorId])
   @@index([status])
   @@index([startTime])
 }
-
-model Inspection {
-  id                    String            @id @default(cuid())
-  partReference         PartReference?
-  inspectorId           String
-  inspector             User              @relation("InspectorInspections", fields: [inspectorId], references: [id])
-  machineId             String
-  machine               Machine           @relation(fields: [machineId], references: [id])
-  result                InspectionResult
-  measurements          Json?
-  notes                 String?
-  // Operator timing (first line of defense)
-  operatorStartedAt     DateTime?
-  operatorCompletedAt   DateTime?
-  operatorActualTime    Int?
-  scannedBarcode        String?
-  // QA/Inspector review (second line of defense)
-  qaReviewerId          String?
-  qaReviewer            User?             @relation("QAReviewerInspections", fields: [qaReviewerId], references: [id])
-  qaDecision            QADecision?
-  qaJustification       String?
-  qaReviewedAt          DateTime?
-  inspectionStartedAt   DateTime?
-  inspectionCompletedAt DateTime?
-  inspectionActualTime  Int?
-  // Session tracking
-  machineSessionId      String?
-  machineSession        MachineSession?   @relation(fields: [machineSessionId], references: [id])
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
-
-  @@index([inspectorId])
-  @@index([machineId])
-  @@index([result])
-  @@index([createdAt])
-  @@index([machineSessionId])
-}
-
 
 model AuditLog {
   id        String   @id @default(cuid())

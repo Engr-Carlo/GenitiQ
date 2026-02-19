@@ -25,15 +25,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ data: null, message: "No active session" });
   }
 
-  // Next unscanned PartReference for this machine
+  // Next PENDING PartReference for this machine
   const nextPartRef = await prisma.partReference.findFirst({
-    where: { machineId: activeSession.machineId, isScanned: false },
-    orderBy: [{ deadline: "asc" }, { createdAt: "asc" }],
+    where: { machineId: activeSession.machineId, status: "PENDING" },
+    orderBy: [{ position: "asc" }, { deadline: "asc" }],
   });
 
-  // Count pending (unscanned) parts for this machine
+  // Count pending parts for this machine
   const pendingCount = await prisma.partReference.count({
-    where: { machineId: activeSession.machineId, isScanned: false },
+    where: { machineId: activeSession.machineId, status: "PENDING" },
   });
 
   return NextResponse.json({

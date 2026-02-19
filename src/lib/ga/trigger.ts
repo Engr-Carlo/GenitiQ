@@ -30,7 +30,7 @@ export async function runGAOptimization(
   const pendingRefs = await prisma.partReference.findMany({
     where: {
       machine: { type: machineType },
-      isScanned: false,
+      status: "PENDING",
     },
     select: {
       id: true,
@@ -59,8 +59,8 @@ export async function runGAOptimization(
     },
   };
 
-  // 3b. Historical average times per machine from Inspection records
-  const machineTimings = await prisma.inspection.groupBy({
+  // 3b. Historical average times per machine from PartReference records
+  const machineTimings = await prisma.partReference.groupBy({
     by: ["machineId"],
     _avg: { operatorActualTime: true },
     where: { operatorActualTime: { not: null } },
@@ -123,7 +123,7 @@ export async function runGAOptimization(
  */
 export async function shouldReoptimize(machineType: "VMM" | "CMM"): Promise<boolean> {
   const pendingCount = await prisma.partReference.count({
-    where: { machine: { type: machineType }, isScanned: false },
+    where: { machine: { type: machineType }, status: "PENDING" },
   });
   return pendingCount >= 2;
 }

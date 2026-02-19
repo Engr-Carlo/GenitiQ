@@ -16,6 +16,17 @@ import {
 // Types
 // ============================================================
 
+interface SuccessData {
+  partNumber: string;
+  barcode: string;
+  result: "ACCEPTED" | "REJECTED";
+  timeIn: string;
+  timeOut: string;
+  duration: string;
+  machineName?: string;
+  inspectorName?: string;
+}
+
 interface BarcodeReference {
   id: string;
   partNumber: string;
@@ -23,7 +34,7 @@ interface BarcodeReference {
   estimatedTime: number;
   deadline: string;
   quantity: number;
-  isScanned: boolean;
+  status: string;
   machine?: {
     id: string;
     name: string;
@@ -61,6 +72,7 @@ export default function OperatorDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [scannedReference, setScannedReference] = useState<BarcodeReference | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successData, setSuccessData] = useState<SuccessData | null>(null);
   const [scannedHistory, setScannedHistory] = useState<ScannedHistory[]>([]);
   const [timeIn, setTimeIn] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -136,10 +148,10 @@ export default function OperatorDashboardPage() {
       }
 
       const reference = data.data[0];
-      
-      // Re-scan prevention: check if barcode was already scanned
-      if (reference.isScanned) {
-        setError(`This part number (${reference.partNumber}) is already scanned. Barcode: ${reference.barcode}`);
+
+      // Re-scan prevention: only allow PENDING or RE_INSPECT parts
+      if (reference.status !== "PENDING" && reference.status !== "RE_INSPECT") {
+        setError(`This part (${reference.partNumber}) is already scanned with status: ${reference.status}. Contact inspector if re-work is needed.`);
         return;
       }
 
@@ -154,16 +166,9 @@ export default function OperatorDashboardPage() {
         scannedAt: new Date().toISOString(),
         machineName: reference.machine?.name,
       };
-      const newHistory = [historyItem, ...scannedHistory].slice(0, 10); // Keep last 10
+      const newHistory = [historyItem, ...scannedHistory].slice(0, 10);
       setScannedHistory(newHistory);
       localStorage.setItem("operator_scan_history", JSON.stringify(newHistory));
-
-      // Mark as scanned in database (tracking)
-      await fetch(`/api/barcode-scanned/track`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ barcodeReferenceId: reference.id }),
-      }).catch(console.error);
     } catch (error) {
       console.error("Barcode lookup error:", error);
       setError("Failed to look up barcode. Please try again.");
@@ -182,6 +187,7 @@ export default function OperatorDashboardPage() {
 
   const handleClearScan = () => {
     setScannedReference(null);
+    setSuccessData(null);
     setError(null);
     setManualBarcode("");
     setTimeIn(null);
@@ -218,17 +224,12 @@ export default function OperatorDashboardPage() {
         return;
       }
 
-      // Show success and time details
-      alert(
-        `✓ Inspection ${result.toLowerCase()}!\n\n` +
-        `Time In: ${data.data.timeIn}\n` +
-        `Time Out: ${data.data.timeOut}\n` +
-        `Duration: ${data.data.duration}\n\n` +
-        `Part sent to inspector for review.`
-      );
-
-      // Clear and ready for next scan
-      handleClearScan();
+      // Show inline success card instead of alert
+      setSuccessData({ ...data.data, result });
+      setScannedReference(null);
+      setTimeIn(null);
+      setNotes("");
+      setPriority(null);
     } catch (error) {
       console.error("Submit inspection error:", error);
       setError("Failed to submit inspection. Please try again.");
@@ -256,7 +257,72 @@ export default function OperatorDashboardPage() {
         </div>
 
         {/* Scan Area */}
-        {!scannedReference ? (
+        {successData ? (
+          /* ── Success Card ── */
+          <Card className={`border-2 ${successData.result === "ACCEPTED" ? "border-success-300 bg-success-50/40" : "border-danger-300 bg-danger-50/40"}`}>
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className={`h-14 w-14 rounded-2xl flex items-center justify-center text-white ${successData.result === "ACCEPTED" ? "bg-success-500" : "bg-danger-500"}`}>
+                  {successData.result === "ACCEPTED" ? <Check size={28} /> : <X size={28} />}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-gray-900">
+                    {successData.result === "ACCEPTED" ? "Part Accepted" : "Part Rejected"}
+                  </h2>
+                  <p className="text-sm text-gray-500">Sent to inspector for QA review</p>
+                </div>
+              </div>
+              <Badge variant={successData.result === "ACCEPTED" ? "success" : "danger"} className="text-base px-4 py-1">
+                {successData.result}
+              </Badge>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Package size={12} /> Part Number</p>
+                <p className="font-black text-gray-900">{successData.partNumber}</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><ScanBarcode size={12} /> Barcode</p>
+                <p className="font-mono font-bold text-gray-900">{successData.barcode}</p>
+              </div>
+              {successData.machineName && (
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Cpu size={12} /> Machine</p>
+                  <p className="font-bold text-gray-900">{successData.machineName}</p>
+                </div>
+              )}
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Clock size={12} /> Time In</p>
+                <p className="font-bold text-gray-900">{successData.timeIn ? new Date(successData.timeIn).toLocaleTimeString() : "-"}</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Clock size={12} /> Time Out</p>
+                <p className="font-bold text-gray-900">{successData.timeOut ? new Date(successData.timeOut).toLocaleTimeString() : "-"}</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><TrendingUp size={12} /> Duration</p>
+                <p className="font-black text-gray-900">{successData.duration}</p>
+              </div>
+              {successData.inspectorName && (
+                <div className="bg-white p-4 rounded-lg border border-gray-200 col-span-2 md:col-span-3">
+                  <p className="text-xs text-gray-500 mb-1">Assigned Inspector</p>
+                  <p className="font-bold text-gray-900">{successData.inspectorName}</p>
+                </div>
+              )}
+            </div>
+
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full font-black uppercase"
+              icon={<ScanBarcode size={20} />}
+              onClick={handleClearScan}
+            >
+              Scan Next Part
+            </Button>
+          </Card>
+        ) : !scannedReference ? (
           <Card className="p-8 text-center border-2 border-dashed border-gray-300">
             <div className="max-w-md mx-auto space-y-6">
               <div className="h-32 w-32 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center mx-auto">

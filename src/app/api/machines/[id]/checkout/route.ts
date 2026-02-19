@@ -62,10 +62,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { currentSessionId: machineSession.id, status: "ACTIVE" },
   });
 
-  // Fetch next unscanned PartReference for this machine
+  // Fetch next PENDING PartReference for this machine
   const nextPartRef = await prisma.partReference.findFirst({
-    where: { machineId, isScanned: false },
-    orderBy: [{ deadline: "asc" }, { createdAt: "asc" }],
+    where: { machineId, status: "PENDING" },
+    orderBy: [{ position: "asc" }, { deadline: "asc" }],
   });
 
   // Audit log

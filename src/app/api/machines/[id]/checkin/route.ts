@@ -18,7 +18,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
     include: {
       machine: { select: { name: true, type: true } },
-      inspections: { where: { result: { not: undefined } } },
     },
   });
 
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const endTime = new Date();
   const durationMs = endTime.getTime() - activeSession.startTime.getTime();
   const durationMinutes = Math.round(durationMs / 60000);
-  const itemsCompleted = activeSession.inspections.length;
+  const itemsCompleted = activeSession.itemsCompleted;
 
   // End the session
   const completedSession = await prisma.machineSession.update({

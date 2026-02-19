@@ -15,22 +15,15 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   if (machineId) where.machineId = machineId;
   if (machineType) where.machine = { type: machineType };
-  if (scanned === "true") where.isScanned = true;
-  else if (scanned === "false" || scanned === null) where.isScanned = false;
+  if (scanned === "true") where.status = { not: "PENDING" };
+  else if (scanned === "false" || scanned === null) where.status = "PENDING";
 
   const refs = await prisma.partReference.findMany({
     where,
     include: {
       machine: { select: { id: true, name: true, type: true } },
       inspector: { select: { id: true, name: true } },
-      inspection: {
-        select: {
-          id: true,
-          result: true,
-          qaDecision: true,
-          operatorCompletedAt: true,
-        },
-      },
+      operator: { select: { id: true, name: true } },
     },
     orderBy: [{ position: "asc" }, { deadline: "asc" }],
   });
