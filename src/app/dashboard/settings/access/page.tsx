@@ -195,10 +195,6 @@ export default function ManageAccessPage() {
   const inspectors = users.filter((u) => u.role === "INSPECTOR");
   const operators = users.filter((u) => u.role === "OPERATOR");
 
-  const admins = users.filter((u) => u.role === "ADMIN");
-  const inspectors = users.filter((u) => u.role === "INSPECTOR");
-  const operators = users.filter((u) => u.role === "OPERATOR");
-
   return (
     <div className="space-y-8">
       <div>
