@@ -9,16 +9,23 @@ export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!hasPermission(session.user.role as UserRole, "MANAGE_ACCESS")) {
+  const { searchParams } = new URL(req.url);
+  const partNumber = searchParams.get("partNumber");
+  const barcode = searchParams.get("barcode");
+  const download = searchParams.get("download");
+
+  // Allow operators to look up by barcode only
+  if (session.user.role === "OPERATOR") {
+    if (!barcode) {
+      return NextResponse.json({ error: "Operators can only search by barcode" }, { status: 403 });
+    }
+  } else if (!hasPermission(session.user.role as UserRole, "MANAGE_ACCESS")) {
     return NextResponse.json({ error: "Forbidden - Admin only" }, { status: 403 });
   }
 
-  const { searchParams } = new URL(req.url);
-  const partNumber = searchParams.get("partNumber");
-  const download = searchParams.get("download");
-
   const where: any = {};
   if (partNumber) where.partNumber = partNumber;
+  if (barcode) where.barcode = barcode;
 
   const references = await prisma.partReference.findMany({
     where,
