@@ -8,7 +8,7 @@ import {
 } from "@/components/ui";
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
-  ScanBarcode, Package, Clock, Calendar, Hash, Cpu, CheckCircle2, History,
+  ScanBarcode, Package, Clock, Calendar, Hash, Cpu, CheckCircle2, History, Check, X,
 } from "lucide-react";
 
 // ============================================================
@@ -60,6 +60,9 @@ export default function OperatorDashboardPage() {
   const [scannedReference, setScannedReference] = useState<BarcodeReference | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scannedHistory, setScannedHistory] = useState<ScannedHistory[]>([]);
+  const [timeIn, setTimeIn] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [notes, setNotes] = useState("");
   const manualInputRef = useRef<HTMLInputElement>(null);
 
   if (session?.user?.role !== "OPERATOR") {
@@ -120,6 +123,7 @@ export default function OperatorDashboardPage() {
 
       const reference = data.data[0];
       setScannedReference(reference);
+      setTimeIn(new Date().toISOString()); // Record time in when barcode is scanned
 
       // Save to history
       const historyItem: ScannedHistory = {
@@ -158,8 +162,56 @@ export default function OperatorDashboardPage() {
     setScannedReference(null);
     setError(null);
     setManualBarcode("");
-    setScanMode(false);
+    setTimeIn(null);
+    setNotes("");
     resetScanner();
+  };
+
+  const handleSubmitInspection = async (result: "ACCEPTED" | "REJECTED") => {
+    if (!scannedReference || !timeIn) {
+      setError("Missing scan data");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/operator/submit-inspection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          barcodeReferenceId: scannedReference.id,
+          result,
+          timeIn,
+          notes: notes.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to submit inspection");
+        return;
+      }
+
+      // Show success and time details
+      alert(
+        `✓ Inspection ${result.toLowerCase()}!\n\n` +
+        `Time In: ${data.data.timeIn}\n` +
+        `Time Out: ${data.data.timeOut}\n` +
+        `Duration: ${data.data.duration}\n\n` +
+        `Part sent to inspector for review.`
+      );
+
+      // Clear and ready for next scan
+      handleClearScan();
+    } catch (error) {
+      console.error("Submit inspection error:", error);
+      setError("Failed to submit inspection. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -236,7 +288,7 @@ export default function OperatorDashboardPage() {
             </div>
           </Card>
         ) : (
-          // Barcode Details Display
+          // Barcode Details Display with Accept/Reject
           <Card className="border-2 border-success-200 bg-success-50/30">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
@@ -245,11 +297,13 @@ export default function OperatorDashboardPage() {
                 </div>
                 <div>
                   <h2 className="text-xl font-black text-gray-900">Barcode Verified</h2>
-                  <p className="text-sm text-gray-500">Reference details loaded successfully</p>
+                  <p className="text-sm text-gray-500">
+                    Time In: {timeIn ? new Date(timeIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
+                  </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={handleClearScan}>
-                Scan Another
+              <Button variant="outline" size="sm" onClick={handleClearScan} disabled={submitting}>
+                Cancel
               </Button>
             </div>
 
@@ -317,20 +371,61 @@ export default function OperatorDashboardPage() {
 
             {/* Inspector Info */}
             {scannedReference.inspector && (
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
                 <p className="text-sm text-gray-500 mb-1">Assigned Inspector</p>
                 <p className="font-bold text-gray-900">{scannedReference.inspector.name}</p>
                 <p className="text-sm text-gray-500">{scannedReference.inspector.email}</p>
               </div>
             )}
 
-            {/* Success Message */}
-            <div className="mt-6 p-4 bg-success-100 border border-success-300 rounded-lg text-center">
-              <p className="text-success-900 font-bold text-lg">
-                ✓ Barcode scan logged successfully
+            {/* Notes (Optional) */}
+            <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
+              <label className="block text-sm font-bold text-gray-700 mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                rows={3}
+                placeholder="Add any observations or notes..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={submitting}
+              />
+            </div>
+
+            {/* Accept/Reject Buttons */}
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                variant="danger"
+                size="lg"
+                icon={<X size={20} />}
+                onClick={() => handleSubmitInspection("REJECTED")}
+                loading={submitting}
+                disabled={submitting}
+                className="font-black uppercase"
+              >
+                Reject
+              </Button>
+              <Button
+                variant="success"
+                size="lg"
+                icon={<Check size={20} />}
+                onClick={() => handleSubmitInspection("ACCEPTED")}
+                loading={submitting}
+                disabled={submitting}
+                className="font-black uppercase"
+              >
+                Accept
+              </Button>
+            </div>
+
+            {/* Info Message */}
+            <div className="mt-4 p-4 bg-info-100 border border-info-300 rounded-lg text-center">
+              <p className="text-info-900 font-bold text-sm">
+                Choose Accept or Reject to complete the inspection
               </p>
-              <p className="text-success-700 text-sm mt-1">
-                Inspector will proceed with the inspection
+              <p className="text-info-700 text-xs mt-1">
+                This part will be sent to the inspector for final review
               </p>
             </div>
           </Card>

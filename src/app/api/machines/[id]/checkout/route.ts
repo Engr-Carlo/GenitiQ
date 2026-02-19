@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-// POST /api/machines/[id]/checkout — Operator checks into a machine
+// POST /api/machines/[id]/checkout — Operator or Inspector checks into a machine
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (session.user.role !== "OPERATOR") {
-    return NextResponse.json({ error: "Only operators can checkout machines" }, { status: 403 });
+  if (session.user.role !== "OPERATOR" && session.user.role !== "INSPECTOR") {
+    return NextResponse.json({ error: "Only operators and inspectors can checkout machines" }, { status: 403 });
   }
 
   const { id: machineId } = await params;
@@ -31,14 +31,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
-  // 3. Check if operator already has an active session on another machine
-  const existingOperatorSession = await prisma.machineSession.findFirst({
+  // 3. Check if user already has an active session on another machine
+  const existingUserSession = await prisma.machineSession.findFirst({
     where: { operatorId: session.user.id, status: "ACTIVE" },
     include: { machine: { select: { name: true } } },
   });
-  if (existingOperatorSession) {
+  if (existingUserSession) {
     return NextResponse.json(
-      { error: `You are already checked into ${existingOperatorSession.machine.name}. Please check out first.` },
+      { error: `You are already checked into ${existingUserSession.machine.name}. Please check out first.` },
       { status: 409 }
     );
   }
