@@ -27,29 +27,27 @@ export async function GET(req: NextRequest) {
   if (partNumber) where.partNumber = partNumber;
   if (barcode) where.barcode = barcode;
 
-  const references = await prisma.partReference.findMany({
-    where,
-    include: {
-      uploadedBy: {
-        select: { id: true, name: true, email: true },
-      },
-      machine: {
-        select: { 
-          id: true, 
-          name: true, 
-          type: true, 
-          status: true,
-          assignedInspector: {
-            select: { id: true, name: true, email: true },
+  try {
+    const references = await prisma.partReference.findMany({
+      where,
+      include: {
+        uploadedBy: {
+          select: { id: true, name: true, email: true },
+        },
+        machine: {
+          select: { 
+            id: true, 
+            name: true, 
+            type: true, 
+            status: true,
           },
         },
+        inspector: {
+          select: { id: true, name: true, email: true },
+        },
       },
-      inspector: {
-        select: { id: true, name: true, email: true },
-      },
-    } as any,
-    orderBy: [{ partNumber: "asc" }, { barcode: "asc" }],
-  });
+      orderBy: [{ partNumber: "asc" }, { barcode: "asc" }],
+    });
 
   // If download=template, return CSV template
   if (download === "template") {
@@ -77,11 +75,11 @@ export async function GET(req: NextRequest) {
       r.deadline.toISOString().split("T")[0],
       r.quantity,
       r.machine?.name || "",
-      r.machine?.assignedInspector?.email || "",
+      r.inspector?.email || "",
     ].join(","));
 
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine,assignedInspector",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector",
       ...rows,
     ].join("\n");
 
@@ -93,7 +91,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ data: references });
+    return NextResponse.json({ data: references });
+  } catch (error: any) {
+    console.error("Barcode reference lookup error:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch barcode references" },
+      { status: 500 }
+    );
+  }
 }
 
 // DELETE /api/admin/barcode-reference — Delete barcode reference(s)
