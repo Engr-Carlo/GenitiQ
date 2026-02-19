@@ -58,6 +58,8 @@ export async function GET(req: NextRequest) {
       updatedAt: p.updatedAt,
       qaDecision: p.qaDecision,
       qaJustification: p.qaJustification,
+      qaReviewedAt: p.qaReviewedAt,
+      qaReviewerName: p.qaReviewer?.name ?? null,
       inspectionStartedAt: p.inspectorTimeIn,
       inspectionCompletedAt: p.inspectorTimeOut,
       inspectionActualTime: p.inspectorActualTime,

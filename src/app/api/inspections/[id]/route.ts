@@ -67,5 +67,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
+  // Increment inspector's active session itemsCompleted counter
+  const inspectorSession = await prisma.machineSession.findFirst({
+    where: { operatorId: session.user.id, status: "ACTIVE" },
+  });
+  if (inspectorSession) {
+    await prisma.machineSession.update({
+      where: { id: inspectorSession.id },
+      data: { itemsCompleted: { increment: 1 } },
+    });
+  }
+
   return NextResponse.json({ data: part });
 }

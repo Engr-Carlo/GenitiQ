@@ -51,6 +51,21 @@ interface PartReferenceItem {
   createdAt: string;
 }
 
+interface ProcessedPart {
+  id: string;
+  partNumber: string;
+  scannedBarcode: string | null;
+  status: string;
+  operatorResult: string | null;
+  qaDecision: string | null;
+  machineName: string;
+  machineType: string;
+  operatorName: string;
+  inspectorName: string | null;
+  createdAt: string;
+  qaReviewedAt: string | null;
+}
+
 // ============================================================
 // Admin Dashboard Page
 // ============================================================
@@ -68,6 +83,7 @@ export default function AdminDashboardPage() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [timing, setTiming] = useState<TimingData>({ avgQueueTime: null, avgInspectionTime: null, totalCycleTime: null });
   const [partReferences, setPartReferences] = useState<PartReferenceItem[]>([]);
+  const [allProcessedParts, setAllProcessedParts] = useState<ProcessedPart[]>([]);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
 
   if (session?.user?.role !== "ADMIN") {
@@ -81,11 +97,12 @@ export default function AdminDashboardPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch analytics + timing + part references in parallel
-      const [analyticsRes, timingRes, partRefRes] = await Promise.all([
+      // Fetch analytics + timing + part references + inspections in parallel
+      const [analyticsRes, timingRes, partRefRes, inspectionsRes] = await Promise.all([
         fetch("/api/analytics?period=7d"),
         fetch("/api/analytics/timing"),
         fetch("/api/admin/barcode-reference"),
+        fetch("/api/inspections?limit=200"),
       ]);
 
       const analyticsData = await analyticsRes.json();
@@ -107,12 +124,12 @@ export default function AdminDashboardPage() {
           avgInspectionTime: timingData.data.summary?.avgInspectionTime ?? null,
           totalCycleTime: timingData.data.summary?.totalCycleTime ?? null,
         });
-        // Map active sessions
+        // Map active sessions (timing API returns flat fields, not nested objects)
         const sessions: ActiveSession[] = (timingData.data.activeSessions || []).map((s: any) => ({
           id: s.id,
-          operatorName: s.operator?.name || "-",
-          machineName: s.machine?.name || "-",
-          machineType: s.machine?.type || "-",
+          operatorName: s.operatorName || "-",
+          machineName: s.machineName || "-",
+          machineType: s.machineType || "-",
           startTime: s.startTime,
           itemsCompleted: s.itemsCompleted,
           status: s.status,
@@ -124,7 +141,27 @@ export default function AdminDashboardPage() {
       if (partRefRes.ok) {
         const partRefData = await partRefRes.json();
         const pending = (partRefData.data || []).filter((r: PartReferenceItem) => r.status === "PENDING" || !r.status);
-        setPartReferences(pending);
+       
+
+      // All processed (non-PENDING) parts for charts and completed summary
+      if (inspectionsRes.ok) {
+        const inspData = await inspectionsRes.json();
+        const parts: ProcessedPart[] = (inspData.data || []).map((p: any) => ({
+          id: p.id,
+          partNumber: p.partNumber || "-",
+          scannedBarcode: p.scannedBarcode || null,
+          status: p.status,
+          operatorResult: p.result || null,         // route aliases operatorResult as "result"
+          qaDecision: p.qaDecision || null,
+          machineName: p.machine?.name || "-",
+          machineType: p.machine?.type || "-",
+          operatorName: p.operatorName || "-",      // route returns flat operatorName
+          inspectorName: p.qaReviewerName || null,  // route returns qaReviewerName
+          createdAt: p.createdAt,
+          qaReviewedAt: p.qaReviewedAt || p.inspectionCompletedAt || null,
+        }));
+        setAllProcessedParts(parts);
+      } setPartReferences(pending);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -138,36 +175,53 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/admin/barcode-reference?download=template");
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "barcode-reference-template.csv";
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error("CSV download failed:", e);
-    } finally {
-      setDownloadingCsv(false);
-    }
-  };
+      const url computed from real inspections
+  const dayMs = 24 * 60 * 60 * 1000;
+  const nowMs = Date.now();
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+  // Daily yield trend for last 10 days (fraction 0–1)
+  const yieldTrend = Array.from({ length: 10 }, (_, i) => {
+    const dayEnd = nowMs - (9 - i) * dayMs;
+    const dayStart = dayEnd - dayMs;
+    const dayLabel = new Date(dayStart).toLocaleDateString("en", { weekday: "short" });
+    const items = allProcessedParts.filter(p => {
+      const t = new Date(p.createdAt).getTime();
+      return t >= dayStart && t < dayEnd;
+    });
+    const reviewed = items.filter(p => p.qaDecision).length;
+    const approved = items.filter(p => p.qaDecision === "APPROVED").length;
+    return { label: dayLabel, value: reviewed > 0 ? approved / reviewed : 0 };
+  });
 
-  // Chart data
-  const defectRateTrend = [
-    { label: "Incoming", value: 2.0 },
-    { label: "In-Process", value: 1.1 },
-    { label: "Final", value: 0.2 },
-  ];
+  // Defect rate by machine type
+  const machineTypes = ["VMM", "CMM"];
+  const defectRateTrend = machineTypes.map(type => {
+    const items = allProcessedParts.filter(p => p.machineType === type);
+    const defects = items.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT").length;
+    return { label: type, value: items.length > 0 ? Math.round((defects / items.length) * 1000) / 10 : 0 };
+  });
+  // Add "Overall" category
+  const totalDefects = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT").length;
+  const overallRate = allProcessedParts.length > 0 ? Math.round((totalDefects / allProcessedParts.length) * 1000) / 10 : 0;
+  defectRateTrend.push({ label: "Overall", value: overallRate });
 
-  const yieldTrend = [
-    { label: "Sun", value: 0.75 },
+  // Defects by machine type bar chart
+  const defectsByInspection = machineTypes.map(type => {
+    const items = allProcessedParts.filter(p => p.machineType === type);
+    const defects = items.filter(p => p.qaDecision === "CONFIRMED_REJECT").length;
+    return { label: type, value: defects };
+  });
+
+  // Distribution pie chart
+  const totalParts = allProcessedParts.length;
+  const passedCount = allProcessedParts.filter(p => p.qaDecision === "APPROVED").length;
+  const failedCount = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT").length;
+  const pendingCount = totalParts - passedCount - failedCount;
+  const distributionData = [
+    { name: "Approved", value: passedCount, color: "#1e40af" },
+    { name: "Rejected", value: failedCount, color: "#dc2626" },
+    { name: "Pending/Other", value: pendingCount, color: "#94a3b8" },
+  ].filter(d => d.value > 0) { label: "Sun", value: 0.75 },
     { label: "Mon", value: 0.78 },
     { label: "Tue", value: 0.76 },
     { label: "Wed", value: 0.78 },
@@ -295,6 +349,66 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  const processedPartsColumns = [
+    { key: "partNumber", header: "Part No.", className: "font-bold" },
+    {
+      key: "scannedBarcode",
+      header: "Barcode",
+      render: (item: ProcessedPart) => (
+        <span className="font-mono text-sm">{item.scannedBarcode || "-"}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item: ProcessedPart) => {
+        const v = item.status === "COMPLETED" ? "success" : item.status === "OPERATOR_DONE" ? "warning" : item.status === "RE_INSPECT" ? "info" : "gray";
+        return <Badge variant={v}>{item.status.replace("_", " ")}</Badge>;
+      },
+    },
+    {
+      key: "operatorResult",
+      header: "Op. Result",
+      render: (item: ProcessedPart) =>
+        item.operatorResult
+          ? <Badge variant={item.operatorResult === "ACCEPTED" ? "success" : "danger"}>{item.operatorResult}</Badge>
+          : <span className="text-gray-400">—</span>,
+    },
+    {
+      key: "qaDecision",
+      header: "Inspector Decision",
+      render: (item: ProcessedPart) => {
+        if (!item.qaDecision) return <Badge variant="warning">Pending</Badge>;
+        const v = item.qaDecision === "APPROVED" ? "success" : item.qaDecision === "CONFIRMED_REJECT" ? "danger" : "info";
+        return <Badge variant={v}>{item.qaDecision.replace(/_/g, " ")}</Badge>;
+      },
+    },
+    {
+      key: "machineName",
+      header: "Machine",
+      render: (item: ProcessedPart) => (
+        <Badge variant={item.machineType === "VMM" ? "info" : "warning"}>{item.machineName}</Badge>
+      ),
+    },
+    { key: "operatorName", header: "Operator", className: "font-bold" },
+    {
+      key: "inspectorName",
+      header: "Inspector",
+      render: (item: ProcessedPart) => item.inspectorName || <span className="text-gray-400">—</span>,
+    },
+    {
+      key: "createdAt",
+      header: "Scanned",
+      render: (item: ProcessedPart) => new Date(item.createdAt).toLocaleDateString(),
+    },
+    {
+      key: "qaReviewedAt",
+      header: "Reviewed",
+      render: (item: ProcessedPart) =>
+        item.qaReviewedAt ? new Date(item.qaReviewedAt).toLocaleDateString() : <span className="text-gray-400">—</span>,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
@@ -376,6 +490,21 @@ export default function AdminDashboardPage() {
           Parts awaiting operator scan. Fill the CSV template and upload to add new parts.
         </p>
         <DataTable columns={partRefColumns} data={partReferences} emptyMessage="No pending parts. Download the CSV template, fill it in, and upload to add parts." />
+      </div>
+
+      {/* Processed & Inspected Parts Summary Table */}
+      <div>
+        <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
+          <CheckCircle2 size={22} className="text-success-500" />
+          Processed &amp; Inspected Parts
+          <Badge variant="success" className="ml-2">{allProcessedParts.filter(p => p.status === "COMPLETED").length} completed</Badge>
+          <Badge variant="warning" className="ml-1">{allProcessedParts.filter(p => p.status === "OPERATOR_DONE").length} awaiting QA</Badge>
+        </h2>
+        <DataTable
+          columns={processedPartsColumns}
+          data={allProcessedParts}
+          emptyMessage="No parts have been processed yet."
+        />
       </div>
 
       {/* Inspection Results Table */}

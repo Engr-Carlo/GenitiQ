@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get("days") || "30");
+
   const since = new Date();
   since.setDate(since.getDate() - days);
 
@@ -61,8 +62,8 @@ export async function GET(req: NextRequest) {
   const activeSessions = await prisma.machineSession.findMany({
     where: { status: "ACTIVE" },
     include: {
-      machine: { select: { name: true, type: true } },
-      operator: { select: { name: true, accountId: true } },
+      machine: { select: { id: true, name: true, type: true } },
+      operator: { select: { id: true, name: true, accountId: true } },
     },
   });
 
@@ -77,12 +78,15 @@ export async function GET(req: NextRequest) {
       perMachine,
       activeSessions: activeSessions.map((s) => ({
         id: s.id,
+        machineId: s.machine.id,
         machineName: s.machine.name,
         machineType: s.machine.type,
+        operatorId: s.operator.id,
         operatorName: s.operator.name,
         operatorAccountId: s.operator.accountId,
         startTime: s.startTime,
         itemsCompleted: s.itemsCompleted,
+        status: s.status,
       })),
     },
   });

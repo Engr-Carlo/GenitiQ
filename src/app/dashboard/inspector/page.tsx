@@ -224,7 +224,7 @@ export default function InspectorDashboardPage() {
       const activeSessions = timingData.data?.activeSessions || [];
 
       const perfData: MachinePerformance[] = (machData.data || []).map((m: any) => {
-        const session = activeSessions.find((s: any) => s.machine?.id === m.id);
+        const session = activeSessions.find((s: any) => s.machineId === m.id);
         const start = session?.startTime ? new Date(session.startTime) : null;
         const uptimeMs = start ? Date.now() - start.getTime() : 0;
         const uptimeH = Math.floor(uptimeMs / 3600000);
@@ -234,7 +234,7 @@ export default function InspectorDashboardPage() {
           name: m.name,
           type: m.type,
           status: m.status,
-          activeOperator: session?.operator?.name || null,
+          activeOperator: session?.operatorName || null,
           itemsProcessed: session?.itemsCompleted || 0,
           uptime: start ? `${uptimeH}h ${uptimeM}m` : "Offline",
           sessionStart: session?.startTime || null,
@@ -626,6 +626,39 @@ export default function InspectorDashboardPage() {
     );
   }
 
+  // Compute weekly chart data from real inspection history
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  const nowMs = Date.now();
+  const weeklyDefectTrend = Array.from({ length: 6 }, (_, i) => {
+    const weekEnd = nowMs - (5 - i) * weekMs;
+    const weekStart = weekEnd - weekMs;
+    const items = allInspections.filter(item => {
+      const t = new Date(item.createdAt).getTime();
+      return t >= weekStart && t < weekEnd;
+    });
+    const defects = items.filter(item =>
+      item.qaDecision === "CONFIRMED_REJECT" || item.qaDecision === "OVERRIDE_ACCEPT"
+    ).length;
+    return {
+      label: `Wk ${i + 1}`,
+      value: items.length > 0 ? Math.round((defects / items.length) * 1000) / 10 : 0,
+    };
+  });
+  const weeklyYieldTrend = Array.from({ length: 6 }, (_, i) => {
+    const weekEnd = nowMs - (5 - i) * weekMs;
+    const weekStart = weekEnd - weekMs;
+    const items = allInspections.filter(item => {
+      const t = new Date(item.createdAt).getTime();
+      return t >= weekStart && t < weekEnd;
+    });
+    const reviewed = items.filter(item => item.qaDecision).length;
+    const approved = items.filter(item => item.qaDecision === "APPROVED").length;
+    return {
+      label: `Wk ${i + 1}`,
+      value: reviewed > 0 ? Math.round((approved / reviewed) * 1000) / 10 : 0,
+    };
+  });
+
   return (
     <div className="space-y-6">
       {/* Machine selection - shown when no active session */}
@@ -857,26 +890,12 @@ export default function InspectorDashboardPage() {
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <DefectRateTrendChart
-              data={[
-                { label: "Week 1", value: 3.2 },
-                { label: "Week 2", value: 2.8 },
-                { label: "Week 3", value: 2.5 },
-                { label: "Week 4", value: 2.1 },
-                { label: "Week 5", value: 1.9 },
-                { label: "Week 6", value: 2.0 },
-              ]}
-              title="Weekly Defect Trend (%)"
+              data={weeklyDefectTrend}
+              title="Weekly Defect Rate (%)"
               height={220}
             />
             <YieldTrendChart
-              data={[
-                { label: "Week 1", value: 96.2 },
-                { label: "Week 2", value: 96.8 },
-                { label: "Week 3", value: 97.1 },
-                { label: "Week 4", value: 97.5 },
-                { label: "Week 5", value: 97.8 },
-                { label: "Week 6", value: 97.8 },
-              ]}
+              data={weeklyYieldTrend}
               title="Inspection Accuracy Trend (%)"
               height={220}
             />
