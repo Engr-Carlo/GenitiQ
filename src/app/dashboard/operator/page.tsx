@@ -9,6 +9,7 @@ import {
 import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   ScanBarcode, Package, Clock, Calendar, Hash, Cpu, CheckCircle2, History, Check, X,
+  AlertTriangle, TrendingUp,
 } from "lucide-react";
 
 // ============================================================
@@ -22,6 +23,7 @@ interface BarcodeReference {
   estimatedTime: number;
   deadline: string;
   quantity: number;
+  isScanned: boolean;
   machine?: {
     id: string;
     name: string;
@@ -63,7 +65,19 @@ export default function OperatorDashboardPage() {
   const [timeIn, setTimeIn] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [notes, setNotes] = useState("");
+  const [priority, setPriority] = useState<"HIGH" | "MEDIUM" | "LOW" | null>(null);
   const manualInputRef = useRef<HTMLInputElement>(null);
+
+  // GA-based priority calculation
+  const calculatePriority = (ref: BarcodeReference): "HIGH" | "MEDIUM" | "LOW" => {
+    const hoursToDeadline = (new Date(ref.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+    const urgencyScore = Math.max(0, 100 - hoursToDeadline / 2);
+    const complexityScore = (ref.estimatedTime / 60) * 50 + (ref.quantity / 10) * 50;
+    const fitness = urgencyScore * 0.6 + complexityScore * 0.4;
+    if (fitness > 70 || hoursToDeadline < 24) return "HIGH";
+    if (fitness > 40 || hoursToDeadline < 72) return "MEDIUM";
+    return "LOW";
+  };
 
   if (session?.user?.role !== "OPERATOR") {
     redirect("/dashboard");
@@ -122,7 +136,15 @@ export default function OperatorDashboardPage() {
       }
 
       const reference = data.data[0];
+      
+      // Re-scan prevention: check if barcode was already scanned
+      if (reference.isScanned) {
+        setError(`This part number (${reference.partNumber}) is already scanned. Barcode: ${reference.barcode}`);
+        return;
+      }
+
       setScannedReference(reference);
+      setPriority(calculatePriority(reference));
       setTimeIn(new Date().toISOString()); // Record time in when barcode is scanned
 
       // Save to history
@@ -164,6 +186,7 @@ export default function OperatorDashboardPage() {
     setManualBarcode("");
     setTimeIn(null);
     setNotes("");
+    setPriority(null);
     resetScanner();
   };
 
@@ -302,9 +325,20 @@ export default function OperatorDashboardPage() {
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={handleClearScan} disabled={submitting}>
-                Cancel
-              </Button>
+              <div className="flex items-center gap-3">
+                {priority && (
+                  <Badge
+                    variant={priority === "HIGH" ? "danger" : priority === "MEDIUM" ? "warning" : "info"}
+                    className="text-sm px-3 py-1"
+                  >
+                    <TrendingUp size={14} className="inline mr-1" />
+                    {priority} PRIORITY
+                  </Badge>
+                )}
+                <Button variant="outline" size="sm" onClick={handleClearScan} disabled={submitting}>
+                  Cancel
+                </Button>
+              </div>
             </div>
 
             {/* Part Details Grid */}

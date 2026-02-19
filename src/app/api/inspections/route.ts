@@ -45,8 +45,42 @@ export async function GET(req: NextRequest) {
     prisma.inspection.count({ where }),
   ]);
 
+  // Enrich inspections with PartReference data (estimatedTime, deadline, quantity, priority)
+  const barcodes = inspections
+    .map((i) => i.scannedBarcode)
+    .filter((b): b is string => !!b);
+
+  let partRefMap: Record<string, { estimatedTime: number; deadline: Date; quantity: number; priority: string }> = {};
+  if (barcodes.length > 0) {
+    const refs = await prisma.partReference.findMany({
+      where: { barcode: { in: barcodes } },
+      select: { barcode: true, estimatedTime: true, deadline: true, quantity: true },
+    });
+    for (const ref of refs) {
+      // Calculate GA-based priority from deadline urgency, estimatedTime, quantity
+      const hoursToDeadline = (ref.deadline.getTime() - Date.now()) / (1000 * 60 * 60);
+      const urgencyScore = Math.max(0, 100 - hoursToDeadline / 2);
+      const complexityScore = (ref.estimatedTime / 60) * 50 + (ref.quantity / 10) * 50;
+      const fitness = urgencyScore * 0.6 + complexityScore * 0.4;
+      const priority = (fitness > 70 || hoursToDeadline < 24) ? "HIGH"
+        : (fitness > 40 || hoursToDeadline < 72) ? "MEDIUM" : "LOW";
+
+      partRefMap[ref.barcode] = {
+        estimatedTime: ref.estimatedTime,
+        deadline: ref.deadline,
+        quantity: ref.quantity,
+        priority,
+      };
+    }
+  }
+
+  const enrichedInspections = inspections.map((insp) => ({
+    ...insp,
+    partRef: insp.scannedBarcode ? partRefMap[insp.scannedBarcode] || null : null,
+  }));
+
   return NextResponse.json({
-    data: inspections,
+    data: enrichedInspections,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
 }

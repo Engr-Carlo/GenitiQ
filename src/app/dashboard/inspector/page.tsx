@@ -5,27 +5,15 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Card, Button, Badge, DataTable, KPICard, Modal, LoadingSpinner } from "@/components/ui";
 import { DefectRateTrendChart, YieldTrendChart } from "@/components/charts";
-import { useBarcodeScanner } from "@/hooks/useBarcodeScanner";
 import {
   ClipboardCheck, Clock, CheckCircle2, XCircle,
-  AlertTriangle, Timer, TrendingUp, ListChecks,
-  Shield, Eye, RotateCcw, FileSearch, ScanBarcode,
-  Play, Package, Activity, Cpu, LogIn, LogOut,
+  AlertTriangle, Timer, TrendingUp,
+  Shield, Eye, RotateCcw, Package, Activity, Cpu, LogIn, LogOut,
 } from "lucide-react";
 
 // ============================================================
 // Types
 // ============================================================
-
-interface QueueItem {
-  id: string;
-  position: number;
-  partNumber: string;
-  priority: string;
-  estimatedTime: number;
-  machine: { id: string; name: string; type: string };
-  status: string;
-}
 
 interface InspectionForReview {
   id: string;
@@ -46,6 +34,11 @@ interface InspectionForReview {
   inspectionCompletedAt: string | null;
   inspectionActualTime: number | null;
   partId: string;
+  // PartReference enriched fields
+  estimatedTime: number | null;
+  deadline: string | null;
+  quantity: number | null;
+  priority: string | null;
 }
 
 interface MachineData {
@@ -65,6 +58,17 @@ interface MachineSession {
   status: string;
   itemsCompleted: number;
   machine: { id: string; name: string; type: string; status: string };
+}
+
+interface MachinePerformance {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  activeOperator: string | null;
+  itemsProcessed: number;
+  uptime: string;
+  sessionStart: string | null;
 }
 
 // ============================================================
@@ -128,10 +132,10 @@ function SessionTimer({ startTime }: { startTime: string }) {
 export default function InspectorDashboardPage() {
   const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
-  const [queue, setQueue] = useState<QueueItem[]>([]);
   const [reviewItems, setReviewItems] = useState<InspectionForReview[]>([]);
   const [allInspections, setAllInspections] = useState<InspectionForReview[]>([]);
-  const [activeTab, setActiveTab] = useState<"review" | "inspections" | "qa">("review");
+  const [activeTab, setActiveTab] = useState<"review" | "analytics" | "machines">("review");
+  const [machinePerformance, setMachinePerformance] = useState<MachinePerformance[]>([]);
 
   // Machine management state
   const [machines, setMachines] = useState<MachineData[]>([]);
@@ -179,7 +183,7 @@ export default function InspectorDashboardPage() {
       // Fetch items needing review (operator completed, no QA decision yet)
       const reviewRes = await fetch("/api/inspections?needsReview=true");
       const reviewData = await reviewRes.json();
-      const formattedReview: InspectionForReview[] = (reviewData.data || []).map((item: any) => ({
+      const mapInspection = (item: any): InspectionForReview => ({
         id: item.id,
         partNumber: item.part?.partNumber || "-",
         operatorName: item.inspector?.name || "-",
@@ -198,47 +202,45 @@ export default function InspectorDashboardPage() {
         inspectionCompletedAt: item.inspectionCompletedAt,
         inspectionActualTime: item.inspectionActualTime,
         partId: item.partId,
-      }));
+        estimatedTime: item.partRef?.estimatedTime ?? null,
+        deadline: item.partRef?.deadline ?? null,
+        quantity: item.partRef?.quantity ?? null,
+        priority: item.partRef?.priority ?? null,
+      });
+      const formattedReview = (reviewData.data || []).map(mapInspection);
       setReviewItems(formattedReview);
 
       // Fetch all inspections
       const inspectionsRes = await fetch("/api/inspections?limit=50");
       const inspectionsData = await inspectionsRes.json();
-      const formattedAll: InspectionForReview[] = (inspectionsData.data || []).map((item: any) => ({
-        id: item.id,
-        partNumber: item.part?.partNumber || "-",
-        operatorName: item.inspector?.name || "-",
-        operatorResult: item.result,
-        machineName: item.machine?.name || "-",
-        machineType: item.machine?.type || "-",
-        operatorStartedAt: item.operatorStartedAt,
-        operatorCompletedAt: item.operatorCompletedAt,
-        operatorActualTime: item.operatorActualTime,
-        scannedBarcode: item.scannedBarcode,
-        notes: item.notes,
-        createdAt: item.createdAt,
-        qaDecision: item.qaDecision,
-        qaJustification: item.qaJustification,
-        inspectionStartedAt: item.inspectionStartedAt,
-        inspectionCompletedAt: item.inspectionCompletedAt,
-        inspectionActualTime: item.inspectionActualTime,
-        partId: item.partId,
-      }));
+      const formattedAll = (inspectionsData.data || []).map(mapInspection);
       setAllInspections(formattedAll);
 
-      // Fetch queue
-      const queueRes = await fetch("/api/queue?status=WAITING");
-      const queueData = await queueRes.json();
-      const formattedQueue = (queueData.data || []).map((item: any, index: number) => ({
-        id: item.id,
-        position: index + 1,
-        partNumber: item.part?.partNumber || "-",
-        priority: item.priority,
-        estimatedTime: item.estimatedTime,
-        machine: item.machine,
-        status: index === 0 ? "Next" : "Queued",
-      }));
-      setQueue(formattedQueue);
+      // Fetch machine performance data
+      const machRes = await fetch("/api/machines");
+      const machData = await machRes.json();
+      const timingRes = await fetch("/api/analytics/timing");
+      const timingData = await timingRes.json();
+      const activeSessions = timingData.data?.activeSessions || [];
+
+      const perfData: MachinePerformance[] = (machData.data || []).map((m: any) => {
+        const session = activeSessions.find((s: any) => s.machine?.id === m.id);
+        const start = session?.startTime ? new Date(session.startTime) : null;
+        const uptimeMs = start ? Date.now() - start.getTime() : 0;
+        const uptimeH = Math.floor(uptimeMs / 3600000);
+        const uptimeM = Math.floor((uptimeMs % 3600000) / 60000);
+        return {
+          id: m.id,
+          name: m.name,
+          type: m.type,
+          status: m.status,
+          activeOperator: session?.operator?.name || null,
+          itemsProcessed: session?.itemsCompleted || 0,
+          uptime: start ? `${uptimeH}h ${uptimeM}m` : "Offline",
+          sessionStart: session?.startTime || null,
+        };
+      });
+      setMachinePerformance(perfData);
 
       // Calculate KPIs
       const all = inspectionsData.data || [];
@@ -411,34 +413,7 @@ export default function InspectorDashboardPage() {
     LOW: "info",
   };
 
-  const queueColumns = [
-    { key: "position", header: "#", className: "w-12 font-bold" },
-    { key: "partNumber", header: "Part Number", className: "font-bold" },
-    {
-      key: "priority",
-      header: "Priority",
-      render: (item: QueueItem) => (
-        <Badge variant={priorityColors[item.priority]}>{item.priority}</Badge>
-      ),
-    },
-    {
-      key: "estimatedTime",
-      header: "Est. Time",
-      render: (item: QueueItem) => `${item.estimatedTime} min`,
-    },
-    {
-      key: "machine",
-      header: "Machine",
-      render: (item: QueueItem) => item.machine.name,
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (item: QueueItem) =>
-        item.status === "Next" ? <Badge variant="success">Next</Badge> : <Badge variant="gray">Queued</Badge>,
-    },
-  ];
-
+  // Table 1: QA Review columns
   const reviewColumns = [
     { key: "partNumber", header: "Part No.", className: "font-bold" },
     { key: "operatorName", header: "Operator" },
@@ -451,17 +426,59 @@ export default function InspectorDashboardPage() {
         </Badge>
       ),
     },
-    { key: "machineName", header: "Machine" },
     {
-      key: "operatorActualTime",
-      header: "Op. Time",
+      key: "operatorStartedAt",
+      header: "Op. Time In",
       render: (item: InspectionForReview) =>
-        item.operatorActualTime ? `${item.operatorActualTime.toFixed(1)} min` : "-",
+        item.operatorStartedAt ? new Date(item.operatorStartedAt).toLocaleTimeString() : "-",
     },
     {
-      key: "createdAt",
-      header: "Submitted",
-      render: (item: InspectionForReview) => new Date(item.createdAt).toLocaleString(),
+      key: "operatorCompletedAt",
+      header: "Op. Time Out",
+      render: (item: InspectionForReview) =>
+        item.operatorCompletedAt ? new Date(item.operatorCompletedAt).toLocaleTimeString() : "-",
+    },
+    {
+      key: "scannedBarcode",
+      header: "Barcode",
+      render: (item: InspectionForReview) => (
+        <span className="font-mono text-sm">{item.scannedBarcode || "-"}</span>
+      ),
+    },
+    {
+      key: "estimatedTime",
+      header: "Est. Time",
+      render: (item: InspectionForReview) =>
+        item.estimatedTime ? `${item.estimatedTime} min` : "-",
+    },
+    {
+      key: "deadline",
+      header: "Deadline",
+      render: (item: InspectionForReview) =>
+        item.deadline ? new Date(item.deadline).toLocaleDateString() : "-",
+    },
+    {
+      key: "quantity",
+      header: "Qty",
+      render: (item: InspectionForReview) =>
+        item.quantity ? <span className="font-bold">{item.quantity}</span> : "-",
+    },
+    {
+      key: "machineType",
+      header: "Machine Type",
+      render: (item: InspectionForReview) => (
+        <Badge variant={item.machineType === "VMM" ? "info" : "warning"}>
+          {item.machineType}
+        </Badge>
+      ),
+    },
+    {
+      key: "priority",
+      header: "Priority",
+      render: (item: InspectionForReview) => {
+        const p = item.priority || "LOW";
+        return <Badge variant={priorityColors[p] || "gray"}>{p}</Badge>;
+      },
     },
     {
       key: "action",
@@ -474,6 +491,7 @@ export default function InspectorDashboardPage() {
     },
   ];
 
+  // Table 3 & 4: Analytics & History / Inspections columns (includes inspector data)
   const historyColumns = [
     { key: "partNumber", header: "Part No.", className: "font-bold" },
     { key: "operatorName", header: "Operator" },
@@ -487,8 +505,62 @@ export default function InspectorDashboardPage() {
       ),
     },
     {
+      key: "operatorStartedAt",
+      header: "Op. Time In",
+      render: (item: InspectionForReview) =>
+        item.operatorStartedAt ? new Date(item.operatorStartedAt).toLocaleTimeString() : "-",
+    },
+    {
+      key: "operatorCompletedAt",
+      header: "Op. Time Out",
+      render: (item: InspectionForReview) =>
+        item.operatorCompletedAt ? new Date(item.operatorCompletedAt).toLocaleTimeString() : "-",
+    },
+    {
+      key: "scannedBarcode",
+      header: "Barcode",
+      render: (item: InspectionForReview) => (
+        <span className="font-mono text-sm">{item.scannedBarcode || "-"}</span>
+      ),
+    },
+    {
+      key: "estimatedTime",
+      header: "Est. Time",
+      render: (item: InspectionForReview) =>
+        item.estimatedTime ? `${item.estimatedTime} min` : "-",
+    },
+    {
+      key: "deadline",
+      header: "Deadline",
+      render: (item: InspectionForReview) =>
+        item.deadline ? new Date(item.deadline).toLocaleDateString() : "-",
+    },
+    {
+      key: "quantity",
+      header: "Qty",
+      render: (item: InspectionForReview) =>
+        item.quantity ? <span className="font-bold">{item.quantity}</span> : "-",
+    },
+    {
+      key: "machineType",
+      header: "Machine Type",
+      render: (item: InspectionForReview) => (
+        <Badge variant={item.machineType === "VMM" ? "info" : "warning"}>
+          {item.machineType}
+        </Badge>
+      ),
+    },
+    {
+      key: "priority",
+      header: "Priority",
+      render: (item: InspectionForReview) => {
+        const p = item.priority || "LOW";
+        return <Badge variant={priorityColors[p] || "gray"}>{p}</Badge>;
+      },
+    },
+    {
       key: "qaDecision",
-      header: "QA Decision",
+      header: "Inspector Result",
       render: (item: InspectionForReview) => {
         if (!item.qaDecision) return <Badge variant="warning">Pending</Badge>;
         const variant = item.qaDecision === "APPROVED" ? "success" : item.qaDecision === "CONFIRMED_REJECT" ? "danger" : "info";
@@ -496,15 +568,53 @@ export default function InspectorDashboardPage() {
       },
     },
     {
-      key: "inspectionActualTime",
-      header: "Review Time",
+      key: "inspectionStartedAt",
+      header: "Insp. Time In",
       render: (item: InspectionForReview) =>
-        item.inspectionActualTime ? `${item.inspectionActualTime.toFixed(1)} min` : "-",
+        item.inspectionStartedAt ? new Date(item.inspectionStartedAt).toLocaleTimeString() : "-",
     },
     {
-      key: "createdAt",
-      header: "Date",
-      render: (item: InspectionForReview) => new Date(item.createdAt).toLocaleDateString(),
+      key: "inspectionCompletedAt",
+      header: "Insp. Time Out",
+      render: (item: InspectionForReview) =>
+        item.inspectionCompletedAt ? new Date(item.inspectionCompletedAt).toLocaleTimeString() : "-",
+    },
+  ];
+
+  // Table 5: Machine Performance columns
+  const machinePerformanceColumns = [
+    { key: "name", header: "Machine", className: "font-bold" },
+    {
+      key: "type",
+      header: "Type",
+      render: (item: MachinePerformance) => (
+        <Badge variant={item.type === "VMM" ? "info" : "warning"}>{item.type}</Badge>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (item: MachinePerformance) => {
+        const v = item.status === "ACTIVE" ? "success" : item.status === "IDLE" ? "gray" : "danger";
+        return <Badge variant={v}>{item.status}</Badge>;
+      },
+    },
+    {
+      key: "activeOperator",
+      header: "Active Operator",
+      render: (item: MachinePerformance) => item.activeOperator || <span className="text-gray-400">—</span>,
+    },
+    {
+      key: "itemsProcessed",
+      header: "Items Processed",
+      render: (item: MachinePerformance) => <span className="font-bold">{item.itemsProcessed}</span>,
+    },
+    { key: "uptime", header: "Session Uptime" },
+    {
+      key: "sessionStart",
+      header: "Session Started",
+      render: (item: MachinePerformance) =>
+        item.sessionStart ? new Date(item.sessionStart).toLocaleTimeString() : "—",
     },
   ];
 
@@ -515,8 +625,6 @@ export default function InspectorDashboardPage() {
       </div>
     );
   }
-
-  const overrideHistory = allInspections.filter((i) => i.qaDecision);
 
   return (
     <div className="space-y-6">
@@ -687,26 +795,26 @@ export default function InspectorDashboardPage() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("inspections")}
+          onClick={() => setActiveTab("analytics")}
           className={`px-4 py-2 font-bold transition-colors ${
-            activeTab === "inspections"
-              ? "text-primary-600 border-b-2 border-primary-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <ClipboardCheck size={18} className="inline mr-2" />
-          Queue & Inspections
-        </button>
-        <button
-          onClick={() => setActiveTab("qa")}
-          className={`px-4 py-2 font-bold transition-colors ${
-            activeTab === "qa"
+            activeTab === "analytics"
               ? "text-primary-600 border-b-2 border-primary-600"
               : "text-gray-500 hover:text-gray-700"
           }`}
         >
           <Shield size={18} className="inline mr-2" />
           Analytics & History
+        </button>
+        <button
+          onClick={() => setActiveTab("machines")}
+          className={`px-4 py-2 font-bold transition-colors ${
+            activeTab === "machines"
+              ? "text-primary-600 border-b-2 border-primary-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <Activity size={18} className="inline mr-2" />
+          Machine Performance
         </button>
       </div>
 
@@ -734,37 +842,19 @@ export default function InspectorDashboardPage() {
         </>
       )}
 
-      {/* ==================== Inspections Tab ==================== */}
-      {activeTab === "inspections" && (
+      {/* ==================== Inspections Tab (REMOVED) ==================== */}
+
+      {/* ==================== Analytics & History Tab ==================== */}
+      {activeTab === "analytics" && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <KPICard title="Total Inspections" value={String(kpis.totalInspections)} icon={<ClipboardCheck size={28} />} />
-            <KPICard title="Pass Rate" value={kpis.passRate} icon={<TrendingUp size={28} />} variant="highlight" />
-            <KPICard title="Completed Today" value={String(kpis.todayCompleted)} icon={<CheckCircle2 size={28} />} />
-            <KPICard title="Total Reviews" value={String(kpis.totalReviews)} icon={<FileSearch size={28} />} />
-          </div>
-
-          <div>
-            <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
-              <ListChecks size={22} className="text-primary-600" />
-              GA-Optimized Inspection Queue
-            </h2>
-            <DataTable columns={queueColumns} data={queue} />
-          </div>
-        </>
-      )}
-
-      {/* ==================== Analytics Tab ==================== */}
-      {activeTab === "qa" && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <KPICard title="Total Reviews" value={String(kpis.totalReviews)} icon={<FileSearch size={28} />} />
             <KPICard title="Override Rate" value={kpis.overrideRate} icon={<RotateCcw size={28} />} />
             <KPICard title="Avg Operator Time" value={kpis.avgOperatorTime} icon={<Timer size={28} />} />
             <KPICard title="Avg Review Time" value={kpis.avgReviewTime} icon={<Clock size={28} />} variant="highlight" />
           </div>
 
-          {/* Defect Trends (mock for now) */}
+          {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <DefectRateTrendChart
               data={[
@@ -792,13 +882,50 @@ export default function InspectorDashboardPage() {
             />
           </div>
 
-          {/* Review History */}
+          {/* Full Inspection History Table (Table 3) */}
           <div>
             <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
               <Shield size={22} className="text-primary-600" />
-              QA Decision History
+              Inspection History
             </h2>
-            <DataTable columns={historyColumns} data={overrideHistory} emptyMessage="No QA reviews yet" />
+            <DataTable columns={historyColumns} data={allInspections} emptyMessage="No inspections recorded yet" />
+          </div>
+        </>
+      )}
+
+      {/* ==================== Machine Performance Tab ==================== */}
+      {activeTab === "machines" && (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <KPICard
+              title="Total Machines"
+              value={String(machinePerformance.length)}
+              icon={<Cpu size={28} />}
+            />
+            <KPICard
+              title="Active Machines"
+              value={String(machinePerformance.filter(m => m.activeOperator).length)}
+              icon={<Activity size={28} />}
+              variant="highlight"
+            />
+            <KPICard
+              title="Items Processed"
+              value={String(machinePerformance.reduce((sum, m) => sum + m.itemsProcessed, 0))}
+              icon={<CheckCircle2 size={28} />}
+            />
+            <KPICard
+              title="Pass Rate"
+              value={kpis.passRate}
+              icon={<TrendingUp size={28} />}
+            />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
+              <Cpu size={22} className="text-primary-600" />
+              Real-Time Machine Performance
+            </h2>
+            <DataTable columns={machinePerformanceColumns} data={machinePerformance} emptyMessage="No machines available" />
           </div>
         </>
       )}

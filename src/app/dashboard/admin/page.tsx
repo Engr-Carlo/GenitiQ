@@ -14,7 +14,7 @@ import {
 } from "@/components/charts";
 import {
   Cpu, Activity, Users, Clock, Timer,
-  CheckCircle2, AlertTriangle, TrendingUp,
+  CheckCircle2, AlertTriangle, TrendingUp, ScanBarcode, Package,
 } from "lucide-react";
 
 // ============================================================
@@ -37,6 +37,21 @@ interface TimingData {
   totalCycleTime: number | null;
 }
 
+interface PartReferenceItem {
+  id: string;
+  partNumber: string;
+  barcode: string;
+  estimatedTime: number;
+  deadline: string;
+  quantity: number;
+  isScanned: boolean;
+  scannedAt: string | null;
+  machine?: { id: string; name: string; type: string; status: string } | null;
+  inspector?: { id: string; name: string; email: string } | null;
+  uploadedBy: { id: string; name: string; email: string };
+  createdAt: string;
+}
+
 // ============================================================
 // Admin Dashboard Page
 // ============================================================
@@ -53,6 +68,7 @@ export default function AdminDashboardPage() {
   const [recentInspections, setRecentInspections] = useState<any[]>([]);
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [timing, setTiming] = useState<TimingData>({ avgQueueTime: null, avgInspectionTime: null, totalCycleTime: null });
+  const [partReferences, setPartReferences] = useState<PartReferenceItem[]>([]);
 
   if (session?.user?.role !== "ADMIN") {
     redirect("/dashboard");
@@ -65,10 +81,11 @@ export default function AdminDashboardPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch analytics + timing in parallel
-      const [analyticsRes, timingRes] = await Promise.all([
+      // Fetch analytics + timing + part references in parallel
+      const [analyticsRes, timingRes, partRefRes] = await Promise.all([
         fetch("/api/analytics?period=7d"),
         fetch("/api/analytics/timing"),
+        fetch("/api/admin/barcode-reference"),
       ]);
 
       const analyticsData = await analyticsRes.json();
@@ -101,6 +118,13 @@ export default function AdminDashboardPage() {
           status: s.status,
         }));
         setActiveSessions(sessions);
+      }
+
+      // Part references — only show unscanned
+      if (partRefRes.ok) {
+        const partRefData = await partRefRes.json();
+        const unscanned = (partRefData.data || []).filter((r: PartReferenceItem) => !r.isScanned);
+        setPartReferences(unscanned);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -219,6 +243,40 @@ export default function AdminDashboardPage() {
     },
   ];
 
+  const partRefColumns = [
+    { key: "partNumber", header: "Part No.", className: "font-bold" },
+    { key: "barcode", header: "Barcode", render: (item: PartReferenceItem) => <span className="font-mono text-sm">{item.barcode}</span> },
+    { key: "estimatedTime", header: "Est. Time", render: (item: PartReferenceItem) => `${item.estimatedTime} min` },
+    { key: "deadline", header: "Deadline", render: (item: PartReferenceItem) => new Date(item.deadline).toLocaleDateString() },
+    { key: "quantity", header: "Qty", render: (item: PartReferenceItem) => <span className="font-bold">{item.quantity}</span> },
+    {
+      key: "machine",
+      header: "Machine",
+      render: (item: PartReferenceItem) => item.machine
+        ? <Badge variant={item.machine.type === "VMM" ? "info" : "warning"}>{item.machine.name}</Badge>
+        : <span className="text-gray-400">—</span>,
+    },
+    {
+      key: "inspector",
+      header: "Inspector",
+      render: (item: PartReferenceItem) => item.inspector?.name || <span className="text-gray-400">—</span>,
+    },
+    {
+      key: "priority",
+      header: "Priority",
+      render: (item: PartReferenceItem) => {
+        const hoursToDeadline = (new Date(item.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+        const urgencyScore = Math.max(0, 100 - hoursToDeadline / 2);
+        const complexityScore = (item.estimatedTime / 60) * 50 + (item.quantity / 10) * 50;
+        const fitness = urgencyScore * 0.6 + complexityScore * 0.4;
+        const priority = (fitness > 70 || hoursToDeadline < 24) ? "HIGH"
+          : (fitness > 40 || hoursToDeadline < 72) ? "MEDIUM" : "LOW";
+        const variant = priority === "HIGH" ? "danger" : priority === "MEDIUM" ? "warning" : "info";
+        return <Badge variant={variant}>{priority}</Badge>;
+      },
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
@@ -274,6 +332,19 @@ export default function AdminDashboardPage() {
           <DefectsBarChart data={defectsByInspection} height={100} />
           <DistributionPieChart data={distributionData} height={100} />
         </div>
+      </div>
+
+      {/* Part Reference Table — only unscanned */}
+      <div>
+        <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
+          <Package size={22} className="text-primary-600" />
+          Part Reference Table
+          <Badge variant="info" className="ml-2">{partReferences.length} pending</Badge>
+        </h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Parts awaiting operator scan. Scanned parts are automatically hidden.
+        </p>
+        <DataTable columns={partRefColumns} data={partReferences} emptyMessage="All barcodes have been scanned!" />
       </div>
 
       {/* Inspection Results Table */}
