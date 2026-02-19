@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     .map((i) => i.scannedBarcode)
     .filter((b): b is string => !!b);
 
-  let partRefMap: Record<string, { estimatedTime: number; deadline: Date; quantity: number; priority: string }> = {};
+  const partRefMap: Record<string, { estimatedTime: number; deadline: Date; quantity: number; priority: string }> = {};
   if (barcodes.length > 0) {
     const refs = await prisma.partReference.findMany({
       where: { barcode: { in: barcodes } },
