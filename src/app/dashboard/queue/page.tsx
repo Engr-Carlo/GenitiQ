@@ -2,6 +2,8 @@
 
 import React from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
 import { Cpu, Scan, ArrowRight, Layers3 } from "lucide-react";
 
 const machineTypes = [
@@ -26,6 +28,13 @@ const machineTypes = [
 ];
 
 export default function QueueSelectionPage() {
+  const { data: session } = useSession();
+  
+  // Block operators from accessing queue page
+  if (session?.user?.role === "OPERATOR") {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="space-y-6">
       {/* Page Header */}

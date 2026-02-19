@@ -60,7 +60,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Queue Management",
     href: "/dashboard/queue",
     icon: <ListChecks size={20} />,
-    roles: [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.ADMIN],
+    roles: [UserRole.INSPECTOR, UserRole.ADMIN],
   },
   {
     label: "Inspections",

@@ -68,7 +68,7 @@ const ROUTE_ACCESS: Record<string, UserRole[]> = {
   "/dashboard/admin": [UserRole.ADMIN],
   "/dashboard/inspector": [UserRole.INSPECTOR],
   "/dashboard/operator": [UserRole.OPERATOR],
-  "/dashboard/queue": [UserRole.INSPECTOR, UserRole.OPERATOR, UserRole.ADMIN],
+  "/dashboard/queue": [UserRole.INSPECTOR, UserRole.ADMIN],
   "/dashboard/settings": [UserRole.ADMIN],
 };
 
