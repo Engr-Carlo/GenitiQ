@@ -96,6 +96,32 @@ function ReviewTimer({ startedAt }: { startedAt: Date | null }) {
 }
 
 // ============================================================
+// Session Timer
+// ============================================================
+
+function SessionTimer({ startTime }: { startTime: string }) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const start = new Date(startTime).getTime();
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+
+  return (
+    <div className="text-sm font-mono font-bold text-gray-700">
+      {hours > 0 && `${hours}h `}{String(minutes).padStart(2, "0")}m {String(seconds).padStart(2, "0")}s
+    </div>
+  );
+}
+
+// ============================================================
 // Inspector Dashboard (merged with QA/QC)
 // ============================================================
 
@@ -105,7 +131,7 @@ export default function InspectorDashboardPage() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [reviewItems, setReviewItems] = useState<InspectionForReview[]>([]);
   const [allInspections, setAllInspections] = useState<InspectionForReview[]>([]);
-  const [activeTab, setActiveTab] = useState<"review" | "inspections" | "qa" | "machines">("review");
+  const [activeTab, setActiveTab] = useState<"review" | "inspections" | "qa">("review");
 
   // Machine management state
   const [machines, setMachines] = useState<MachineData[]>([]);
@@ -143,6 +169,8 @@ export default function InspectorDashboardPage() {
 
   useEffect(() => {
     fetchData();
+    fetchSession();
+    fetchMachines();
   }, []);
 
   const fetchData = async () => {
@@ -312,7 +340,7 @@ export default function InspectorDashboardPage() {
 
       if (res.ok) {
         await Promise.all([fetchSession(), fetchMachines()]);
-        setActiveTab("machines");
+        // No need to change tab, session header will appear automatically
       } else {
         const data = await res.json();
         alert(data.error || "Failed to check in");
@@ -500,6 +528,156 @@ export default function InspectorDashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Machine selection - shown when no active session */}
+      {!activeSession ? (
+        <div className="space-y-6">
+          <Card className="bg-gradient-to-r from-primary-50 to-primary-100/50 border-primary-200">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-xl bg-primary-800 text-white flex items-center justify-center">                <Cpu size={32} />
+              </div>
+              <div>
+                <h1 className="text-2xl font-black text-gray-900">Select a Machine</h1>
+                <p className="text-gray-600">You must check in to a machine before performing inspections</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* VMM Machines */}
+          {machines.filter(m => m.type === "VMM").length > 0 && (
+            <div>
+              <h3 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3">
+                VMM Machines
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {machines.filter(m => m.type === "VMM").map((machine) => (
+                  <Card key={machine.id} className="hover:border-primary-400 hover:shadow-md transition-all">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <Badge variant="info" className="text-xs mb-1">VMM</Badge>
+                        <h4 className="text-lg font-black text-gray-900">{machine.name}</h4>
+                        {machine.location && <p className="text-xs text-gray-500">{machine.location}</p>}
+                      </div>
+                      <Badge variant={
+                        machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? "gray" :
+                        machine.hasActiveSession ? "danger" : "success"
+                      }>
+                        {machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status :
+                         machine.hasActiveSession ? "In Use" : "Available"}
+                      </Badge>
+                    </div>
+                    {machine.currentOperator && (
+                      <p className="text-xs text-gray-500 mb-3">Used by: {machine.currentOperator.name}</p>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={<LogIn size={14} />}
+                      onClick={() => handleCheckIn(machine)}
+                      disabled={machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" || machine.hasActiveSession}
+                      className="w-full"
+                    >
+                      {machine.hasActiveSession ? "In Use" : machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status : "Check In"}
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CMM Machines */}
+          {machines.filter(m => m.type === "CMM").length > 0 && (
+            <div>
+              <h3 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3">
+                CMM Machines
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {machines.filter(m => m.type === "CMM").map((machine) => (
+                  <Card key={machine.id} className="hover:border-primary-400 hover:shadow-md transition-all">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <Badge variant="warning" className="text-xs mb-1">CMM</Badge>
+                        <h4 className="text-lg font-black text-gray-900">{machine.name}</h4>
+                        {machine.location && <p className="text-xs text-gray-500">{machine.location}</p>}
+                      </div>
+                      <Badge variant={
+                        machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? "gray" :
+                        machine.hasActiveSession ? "danger" : "success"
+                      }>
+                        {machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status :
+                         machine.hasActiveSession ? "In Use" : "Available"}
+                      </Badge>
+                    </div>
+                    {machine.currentOperator && (
+                      <p className="text-xs text-gray-500 mb-3">Used by: {machine.currentOperator.name}</p>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={<LogIn size={14} />}
+                      onClick={() => handleCheckIn(machine)}
+                      disabled={machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" || machine.hasActiveSession}
+                      className="w-full"
+                    >
+                      {machine.hasActiveSession ? "In Use" : machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status : "Check In"}
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {machines.length === 0 && (
+            <Card className="text-center py-12">
+              <Cpu size={48} className="mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-bold text-gray-500">No machines available</h3>
+              <p className="text-sm text-gray-400 mt-2">Contact admin to add machines</p>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Persistent Session Header */}
+          <Card className="bg-gradient-to-r from-primary-50 to-primary-100/50 border-primary-200 sticky top-0 z-10 shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-primary-800 text-white flex items-center justify-center">
+                  <Cpu size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-black text-gray-900">{activeSession.machine.name}</h2>
+                    <Badge variant={activeSession.machine.type === "VMM" ? "info" : "warning"}>
+                      {activeSession.machine.type}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Clock size={14} className="text-gray-500" />
+                    <SessionTimer startTime={activeSession.startTime} />
+                    <span className="text-xs text-gray-500">• {activeSession.itemsCompleted} items completed</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={<AlertTriangle size={14} />}
+                  onClick={() => setReportModal(true)}
+                >
+                  Report Issue
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon={<LogOut size={14} />}
+                  onClick={() => setCheckoutConfirm(true)}
+                >
+                  Check Out
+                </Button>
+              </div>
+            </div>
+          </Card>
+
       {/* Tab Navigation */}
       <div className="flex gap-4 border-b border-gray-200">
         <button
@@ -537,20 +715,6 @@ export default function InspectorDashboardPage() {
         >
           <Shield size={18} className="inline mr-2" />
           Analytics & History
-        </button>
-        <button
-          onClick={() => setActiveTab("machines")}
-          className={`px-4 py-2 font-bold transition-colors ${
-            activeTab === "machines"
-              ? "text-primary-600 border-b-2 border-primary-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Cpu size={18} className="inline mr-2" />
-          Machine Operations
-          {activeSession && (
-            <Badge variant="success" className="ml-2">Active</Badge>
-          )}
         </button>
       </div>
 
@@ -646,180 +810,6 @@ export default function InspectorDashboardPage() {
           </div>
         </>
       )}
-
-      {/* ==================== Machine Operations Tab ==================== */}
-      {activeTab === "machines" && (
-        <>
-          {!activeSession ? (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-xl font-black text-gray-900 uppercase mb-2">Select Machine</h2>
-                <p className="text-gray-500">Choose a machine to check in and begin operations</p>
-              </div>
-
-              {/* VMM Machines */}
-              {machines.filter(m => m.type === "VMM").length > 0 && (
-                <div>
-                  <h3 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3">
-                    VMM Machines
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {machines.filter(m => m.type === "VMM").map((machine) => (
-                      <Card key={machine.id} className="hover:border-primary-400 hover:shadow-md transition-all">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <Badge variant="info" className="text-xs mb-1">VMM</Badge>
-                            <h4 className="text-lg font-black text-gray-900">{machine.name}</h4>
-                            {machine.location && <p className="text-xs text-gray-500">{machine.location}</p>}
-                          </div>
-                          <Badge variant={
-                            machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? "gray" :
-                            machine.hasActiveSession ? "danger" : "success"
-                          }>
-                            {machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status :
-                             machine.hasActiveSession ? "In Use" : "Available"}
-                          </Badge>
-                        </div>
-                        {machine.currentOperator && (
-                          <p className="text-xs text-gray-500 mb-3">Used by: {machine.currentOperator.name}</p>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          icon={<LogIn size={14} />}
-                          onClick={() => handleCheckIn(machine)}
-                          disabled={machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" || machine.hasActiveSession}
-                          className="w-full"
-                        >
-                          {machine.hasActiveSession ? "In Use" : machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status : "Check In"}
-                        </Button>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* CMM Machines */}
-              {machines.filter(m => m.type === "CMM").length > 0 && (
-                <div>
-                  <h3 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3">
-                    CMM Machines
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {machines.filter(m => m.type === "CMM").map((machine) => (
-                      <Card key={machine.id} className="hover:border-primary-400 hover:shadow-md transition-all">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <Badge variant="warning" className="text-xs mb-1">CMM</Badge>
-                            <h4 className="text-lg font-black text-gray-900">{machine.name}</h4>
-                            {machine.location && <p className="text-xs text-gray-500">{machine.location}</p>}
-                          </div>
-                          <Badge variant={
-                            machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? "gray" :
-                            machine.hasActiveSession ? "danger" : "success"
-                          }>
-                            {machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status :
-                             machine.hasActiveSession ? "In Use" : "Available"}
-                          </Badge>
-                        </div>
-                        {machine.currentOperator && (
-                          <p className="text-xs text-gray-500 mb-3">Used by: {machine.currentOperator.name}</p>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          icon={<LogIn size={14} />}
-                          onClick={() => handleCheckIn(machine)}
-                          disabled={machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" || machine.hasActiveSession}
-                          className="w-full"
-                        >
-                          {machine.hasActiveSession ? "In Use" : machine.status === "SHUTDOWN" || machine.status === "MAINTENANCE" ? machine.status : "Check In"}
-                        </Button>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {machines.length === 0 && (
-                <Card className="text-center py-12">
-                  <Cpu size={48} className="mx-auto text-gray-300 mb-4" />
-                  <h3 className="text-lg font-bold text-gray-500">No machines available</h3>
-                </Card>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Active Session Header */}
-              <Card className="bg-gradient-to-r from-primary-50 to-primary-100/50 border-primary-200">
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-primary-800 text-white flex items-center justify-center">
-                      <Cpu size={24} />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-black text-gray-900">{activeSession.machine.name}</h2>
-                      <Badge variant={activeSession.machine.type === "VMM" ? "info" : "warning"}>
-                        {activeSession.machine.type}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      icon={<AlertTriangle size={14} />}
-                      onClick={() => setReportModal(true)}
-                    >
-                      Report Issue
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      icon={<LogOut size={14} />}
-                      onClick={() => setCheckoutConfirm(true)}
-                    >
-                      Check Out
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-
-              <Card>
-                <h3 className="text-lg font-black text-gray-900 mb-4">Session Active</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs uppercase font-bold text-gray-500 mb-1">Machine</p>
-                    <p className="text-lg font-black text-gray-900">{activeSession.machine.name}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase font-bold text-gray-500 mb-1">Items Completed</p>
-                    <p className="text-lg font-black text-gray-900">{activeSession.itemsCompleted}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase font-bold text-gray-500 mb-1">Started At</p>
-                    <p className="text-sm text-gray-700">{new Date(activeSession.startTime).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs uppercase font-bold text-gray-500 mb-1">Status</p>
-                    <Badge variant="success">{activeSession.status}</Badge>
-                  </div>
-                </div>
-              </Card>
-
-              <Card className="bg-info-50 border-info-200">
-                <div className="flex items-start gap-3">
-                  <Activity size={24} className="text-info-600 mt-1" />
-                  <div>
-                    <h4 className="font-black text-gray-900 mb-1">Machine Session Active</h4>
-                    <p className="text-sm text-gray-600">
-                      You are checked in to {activeSession.machine.name}. Use the queue management or inspections tabs to work on parts.
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          )}
         </>
       )}
 
