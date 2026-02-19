@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Prisma Seed",
+			"type": "shell",
+			"command": "npx prisma db seed",
+			"group": "build"
+		}
+	]
+}
