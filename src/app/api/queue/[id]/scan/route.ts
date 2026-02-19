@@ -74,7 +74,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await prisma.partReference.update({
     where: { id: barcodeRef.id },
     data: {
-      isScanned: true,
       scannedAt: now,
       scannedById: session.user.id,
     },
