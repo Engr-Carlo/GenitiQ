@@ -1,165 +1,480 @@
 "use client";
 
-import React, { useState } from "react";
-import { Button, Card, Modal, Input, Select, Badge } from "@/components/ui";
-import { Plus, Shield, Mail, User, Key } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Button, Card, Modal, Input, Select, Badge, LoadingSpinner } from "@/components/ui";
+import { Plus, Edit2, Mail, User, Key, Briefcase, Building2 } from "lucide-react";
 
 // ============================================================
-// Mock Data
+// Types
 // ============================================================
 
-interface Admin {
+interface UserAccount {
   id: string;
+  accountId: string;
   name: string;
   email: string;
-  levelOfAccess: string;
-  permissions: string[];
+  role: "ADMIN" | "INSPECTOR" | "OPERATOR";
+  department: string | null;
+  position: string | null;
+  isActive: boolean;
 }
-
-const mockAdmins: Admin[] = [
-  {
-    id: "1",
-    name: "Engr. Juan Dela Cruz",
-    email: "jdc@company.xyz",
-    levelOfAccess: "Super Admin",
-    permissions: ["Full Access", "System Config", "User Management"],
-  },
-  {
-    id: "2",
-    name: "Maria Santos",
-    email: "ms@company.xyz",
-    levelOfAccess: "Admin",
-    permissions: ["User Management", "Reports"],
-  },
-];
 
 // ============================================================
 // Manage Access Page
 // ============================================================
 
 export default function ManageAccessPage() {
-  const [admins, setAdmins] = useState<Admin[]>(mockAdmins);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
-    accountId: "",
-    levelOfAccess: "",
-    permissions: "",
+    password: "",
+    role: "OPERATOR" as "OPERATOR" | "INSPECTOR",
+    department: "",
+    position: "",
   });
 
-  const handleAddAdmin = () => {
-    if (!formData.email || !formData.accountId) return;
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "OPERATOR" as "OPERATOR" | "INSPECTOR",
+    department: "",
+    position: "",
+  });
 
-    const newAdmin: Admin = {
-      id: String(admins.length + 1),
-      name: formData.accountId,
-      email: formData.email,
-      levelOfAccess: formData.levelOfAccess || "Admin",
-      permissions: formData.permissions ? formData.permissions.split(",").map((p) => p.trim()) : ["View"],
-    };
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
-    setAdmins([...admins, newAdmin]);
-    setShowAddModal(false);
-    setFormData({ email: "", accountId: "", levelOfAccess: "", permissions: "" });
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/users?limit=100");
+      const data = await res.json();
+      if (res.ok) {
+        setUsers(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div>
-      <h1 className="text-2xl font-black uppercase tracking-wide text-gray-900 mb-6">
-        Roles and Responsibilities
-      </h1>
+  const handleOpenModal = (user?: UserAccount) => {
+    if (user) {
+      setEditingUser(user);
+      setFormData({
+        name: user.name,
+        email: user.email,
+        password: "",
+        role: user.role === "ADMIN" ? "OPERATOR" : user.role,
+        department: user.department || "",
+        position: user.position || "",
+      });
+    } else {
+      setEditingUser(null);
+      setFormData({
+        name: "",
+        email: "",
+        password: "",
+        role: "OPERATOR",
+        department: "",
+        position: "",
+      });
+    }
+    setShowModal(true);
+    setMessage(null);
+  };
 
-      {/* Add Admin Button */}
-      <div className="mb-8">
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setEditingUser(null);
+    setFormData({
+      name: "",
+      email: "",
+      password: "",
+      role: "OPERATOR",
+      department: "",
+      position: "",
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.name || !formData.email) {
+      setMessage({ type: "error", text: "Name and email are required" });
+      return;
+    }
+
+    if (!editingUser && !formData.password) {
+      setMessage({ type: "error", text: "Password is required for new users" });
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage(null);
+
+    try {
+      if (editingUser) {
+        // Update existing user
+        const res = await fetch(`/api/users/${editingUser.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            role: formData.role,
+            department: formData.department || null,
+            position: formData.position || null,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setMessage({ type: "success", text: "User updated successfully" });
+          fetchUsers();
+          setTimeout(handleCloseModal, 1500);
+        } else {
+          setMessage({ type: "error", text: data.error || "Failed to update user" });
+        }
+      } else {
+        // Create new user
+        const res = await fetch("/api/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            role: formData.role,
+            department: formData.department || null,
+            position: formData.position || null,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setMessage({ type: "success", text: "User created successfully" });
+          fetchUsers();
+          setTimeout(handleCloseModal, 1500);
+        } else {
+          setMessage({ type: "error", text: data.error || "Failed to create user" });
+        }
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: "An error occurred" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeactivate = async (userId: string, userName: string) => {
+    if (!confirm(`Deactivate ${userName}?`)) return;
+
+    try {
+      const res = await fetch(`/api/users/${userId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        fetchUsers();
+      } else {
+        alert("Failed to deactivate user");
+      }
+    } catch (error) {
+      alert("Failed to deactivate user");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
+
+  const admins = users.filter((u) => u.role === "ADMIN");
+  const inspectors = users.filter((u) => u.role === "INSPECTOR");
+  const operators = users.filter((u) => u.role === "OPERATOR");
+
+  const admins = users.filter((u) => u.role === "ADMIN");
+  const inspectors = users.filter((u) => u.role === "INSPECTOR");
+  const operators = users.filter((u) => u.role === "OPERATOR");
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-black uppercase tracking-wide text-gray-900 mb-2">
+          Manage Access
+        </h1>
+        <p className="text-gray-500">Manage operator and inspector accounts. Only 1 admin is allowed.</p>
+      </div>
+
+      {/* Add User Button */}
+      <div className="flex gap-3">
         <Button
-          variant="outline"
+          variant="primary"
           size="lg"
           icon={<Plus size={20} />}
-          onClick={() => setShowAddModal(true)}
+          onClick={() => handleOpenModal()}
           className="font-black uppercase tracking-wider"
         >
-          Add Admin
+          Add Operator/Inspector
         </Button>
       </div>
 
-      {/* Admins List */}
-      <div className="space-y-6">
-        <h2 className="text-xl font-black text-gray-900 uppercase">Admins</h2>
-
-        {admins.map((admin, idx) => (
-          <Card key={admin.id} className="p-5 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-bold text-gray-800">Admin {idx + 1}</h3>
-                <div className="mt-2 space-y-1.5 text-sm text-gray-600">
-                  <div className="flex items-center gap-2">
-                    <User size={14} className="text-gray-400" />
-                    <span className="font-medium">{admin.name}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Mail size={14} className="text-gray-400" />
-                    <span>{admin.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Key size={14} className="text-gray-400" />
-                    <span>Level of Access: <strong>{admin.levelOfAccess}</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Shield size={14} className="text-gray-400" />
-                    <span>Permissions:</span>
-                    {admin.permissions.map((perm) => (
-                      <Badge key={perm} variant="info">{perm}</Badge>
-                    ))}
+      {/* Admin Section (Read-only) */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-black text-gray-900 uppercase flex items-center gap-2">
+          <Key size={20} className="text-gray-600" />
+          Admin (Read-Only)
+        </h2>
+        <Card className="bg-gray-50">
+          <p className="text-sm text-gray-600 mb-4">
+            There can only be 1 admin account. This account has full system access.
+          </p>
+          {admins.map((admin) => (
+            <Card key={admin.id} className="bg-white p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <Badge variant="success" className="mb-2">ADMIN</Badge>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex items-center gap-2">
+                      <User size={14} className="text-gray-400" />
+                      <span className="font-bold">{admin.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail size={14} className="text-gray-400" />
+                      <span>{admin.email}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Key size={14} className="text-gray-400" />
+                      <span>Account ID: {admin.accountId}</span>
+                    </div>
                   </div>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" className="text-danger-600 hover:text-danger-700">
-                Remove
-              </Button>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))}
+        </Card>
       </div>
 
-      {/* Add Admin Modal */}
-      <Modal isOpen={showAddModal} onClose={() => setShowAddModal(false)} title="Add Admin" size="md">
+      {/* Inspectors Section */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-black text-gray-900 uppercase flex items-center gap-2">
+          <Briefcase size={20} className="text-gray-600" />
+          Inspectors ({inspectors.length})
+        </h2>
+        <div className="grid gap-4">
+          {inspectors.length === 0 ? (
+            <Card className="p-6 text-center text-gray-500">
+              <p>No inspectors yet. Add one using the button above.</p>
+            </Card>
+          ) : (
+            inspectors.map((user) => (
+              <Card key={user.id} className="p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <Badge variant="info" className="mb-2">INSPECTOR</Badge>
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <User size={14} className="text-gray-400" />
+                        <span className="font-bold">{user.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail size={14} className="text-gray-400" />
+                        <span>{user.email}</span>
+                      </div>
+                      {user.department && (
+                        <div className="flex items-center gap-2">
+                          <Building2 size={14} className="text-gray-400" />
+                          <span>{user.department}</span>
+                        </div>
+                      )}
+                      {user.position && (
+                        <div className="flex items-center gap-2">
+                          <Briefcase size={14} className="text-gray-400" />
+                          <span>{user.position}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Edit2 size={14} />}
+                      onClick={() => handleOpenModal(user)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-danger-600 hover:text-danger-700"
+                      onClick={() => handleDeactivate(user.id, user.name)}
+                    >
+                      Deactivate
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Operators Section */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-black text-gray-900 uppercase flex items-center gap-2">
+          <User size={20} className="text-gray-600" />
+          Operators ({operators.length})
+        </h2>
+        <div className="grid gap-4">
+          {operators.length === 0 ? (
+            <Card className="p-6 text-center text-gray-500">
+              <p>No operators yet. Add one using the button above.</p>
+            </Card>
+          ) : (
+            operators.map((user) => (
+              <Card key={user.id} className="p-5 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <Badge variant="warning" className="mb-2">OPERATOR</Badge>
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex items-center gap-2">
+                        <User size={14} className="text-gray-400" />
+                        <span className="font-bold">{user.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Mail size={14} className="text-gray-400" />
+                        <span>{user.email}</span>
+                      </div>
+                      {user.department && (
+                        <div className="flex items-center gap-2">
+                          <Building2 size={14} className="text-gray-400" />
+                          <span>{user.department}</span>
+                        </div>
+                      )}
+                      {user.position && (
+                        <div className="flex items-center gap-2">
+                          <Briefcase size={14} className="text-gray-400" />
+                          <span>{user.position}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Edit2 size={14} />}
+                      onClick={() => handleOpenModal(user)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-danger-600 hover:text-danger-700"
+                      onClick={() => handleDeactivate(user.id, user.name)}
+                    >
+                      Deactivate
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Add/Edit User Modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={handleCloseModal}
+        title={editingUser ? "Edit User" : "Add Operator/Inspector"}
+        size="md"
+      >
         <div className="space-y-4">
+          {message && (
+            <div
+              className={`p-3 rounded-lg ${
+                message.type === "success"
+                  ? "bg-success-50 text-success-900 border border-success-200"
+                  : "bg-danger-50 text-danger-900 border border-danger-200"
+              }`}
+            >
+              {message.text}
+            </div>
+          )}
+
           <Input
-            placeholder="Work Email Address"
+            placeholder="Full Name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            icon={<User size={16} />}
+          />
+
+          <Input
+            placeholder="Email Address"
+            type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             icon={<Mail size={16} />}
+            disabled={!!editingUser}
           />
-          <Input
-            placeholder="Account ID"
-            value={formData.accountId}
-            onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-            icon={<User size={16} />}
-          />
-          <Input
-            placeholder="Level of Access"
-            value={formData.levelOfAccess}
-            onChange={(e) => setFormData({ ...formData, levelOfAccess: e.target.value })}
-            icon={<Key size={16} />}
-          />
+
+          {!editingUser && (
+            <Input
+              placeholder="Password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              icon={<Key size={16} />}
+            />
+          )}
+
           <Select
-            placeholder="Permissions"
+            placeholder="Role"
             options={[
-              { value: "Full Access", label: "Full Access" },
-              { value: "User Management", label: "User Management" },
-              { value: "Reports", label: "Reports" },
-              { value: "View Only", label: "View Only" },
+              { value: "OPERATOR", label: "Operator" },
+              { value: "INSPECTOR", label: "Inspector" },
             ]}
-            value={formData.permissions}
-            onChange={(e) => setFormData({ ...formData, permissions: e.target.value })}
+            value={formData.role}
+            onChange={(e) => setFormData({ ...formData, role: e.target.value as "OPERATOR" | "INSPECTOR" })}
           />
+
+          <Input
+            placeholder="Department (Optional)"
+            value={formData.department}
+            onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+            icon={<Building2 size={16} />}
+          />
+
+          <Input
+            placeholder="Position (Optional)"
+            value={formData.position}
+            onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+            icon={<Briefcase size={16} />}
+          />
+
           <Button
             variant="primary"
             size="lg"
             className="w-full font-bold uppercase tracking-wider"
-            onClick={handleAddAdmin}
+            onClick={handleSubmit}
+            loading={submitting}
+            disabled={submitting}
           >
-            Add Account as Admin
+            {editingUser ? "Update User" : "Create User"}
           </Button>
         </div>
       </Modal>

@@ -63,6 +63,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
+  // 2.5. Link inspection to PartReference if barcode was scanned
+  if (queueItem.scannedBarcode) {
+    await prisma.partReference.updateMany({
+      where: { barcode: queueItem.scannedBarcode },
+      data: { inspectionId: inspection.id },
+    });
+  }
+
   // 3. Update part status — goes to FOR_REVIEW so inspector can double check
   await prisma.part.update({
     where: { id: queueItem.partId },

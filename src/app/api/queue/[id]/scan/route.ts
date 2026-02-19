@@ -70,6 +70,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     },
   });
 
+  // Mark PartReference as scanned and track who scanned it
+  await prisma.partReference.update({
+    where: { id: barcodeRef.id },
+    data: {
+      isScanned: true,
+      scannedAt: now,
+      scannedById: session.user.id,
+    },
+  });
+
   return NextResponse.json({
     data: {
       verified: true,
