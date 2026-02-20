@@ -47,3 +47,43 @@ export function calculatePercentage(value: number, total: number): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+/**
+ * Format a duration stored in seconds to a human-readable string.
+ * - < 60s  → "42s"
+ * - >= 60s → "3.2 min"
+ */
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || seconds === 0) return "—";
+  if (seconds < 60) return `${seconds}s`;
+  return `${(seconds / 60).toFixed(1)} min`;
+}
+
+/**
+ * Export an array of objects as a CSV file download.
+ */
+export function exportToCsv(filename: string, rows: Record<string, any>[], columns?: { key: string; header: string }[]) {
+  if (rows.length === 0) return;
+  const cols = columns || Object.keys(rows[0]).map((k) => ({ key: k, header: k }));
+  const header = cols.map((c) => `"${c.header}"`).join(",");
+  const body = rows
+    .map((row) =>
+      cols
+        .map((c) => {
+          const val = row[c.key];
+          if (val == null) return '""';
+          const str = String(val).replace(/"/g, '""');
+          return `"${str}"`;
+        })
+        .join(",")
+    )
+    .join("\n");
+  const csv = `${header}\n${body}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

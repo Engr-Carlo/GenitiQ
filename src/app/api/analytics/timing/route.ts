@@ -32,11 +32,12 @@ export async function GET(req: NextRequest) {
     select: { inspectorActualTime: true, machineId: true },
   });
 
+  // Times are stored in SECONDS
   const operatorTimes = withOperatorTime.map((p) => p.operatorActualTime!);
   const inspectorTimes = withInspectorTime.map((p) => p.inspectorActualTime!);
-  const avgOperatorTime = operatorTimes.length > 0
+  const avgOperatorTimeSec = operatorTimes.length > 0
     ? operatorTimes.reduce((a, b) => a + b, 0) / operatorTimes.length : 0;
-  const avgInspectionTime = inspectorTimes.length > 0
+  const avgInspectionTimeSec = inspectorTimes.length > 0
     ? inspectorTimes.reduce((a, b) => a + b, 0) / inspectorTimes.length : 0;
 
   // Per-machine breakdown
@@ -53,8 +54,8 @@ export async function GET(req: NextRequest) {
   const perMachine = Object.entries(machineMap).map(([id, d]) => ({
     machineId: id,
     machineName: d.name,
-    avgOperatorTime: d.opTimes.length > 0 ? Math.round(d.opTimes.reduce((a, b) => a + b) / d.opTimes.length) : 0,
-    avgInspectionTime: d.insTimes.length > 0 ? Math.round(d.insTimes.reduce((a, b) => a + b) / d.insTimes.length) : 0,
+    avgOperatorTime: d.opTimes.length > 0 ? Math.round(d.opTimes.reduce((a, b) => a + b) / d.opTimes.length) : 0, // seconds
+    avgInspectionTime: d.insTimes.length > 0 ? Math.round(d.insTimes.reduce((a, b) => a + b) / d.insTimes.length) : 0, // seconds
     itemsCompleted: d.opTimes.length,
   }));
 
@@ -70,9 +71,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     data: {
       summary: {
-        avgOperatorTime: Math.round(avgOperatorTime * 10) / 10,
-        avgInspectionTime: Math.round(avgInspectionTime * 10) / 10,
-        totalCycleTime: Math.round((avgOperatorTime + avgInspectionTime) * 10) / 10,
+        avgOperatorTime: Math.round(avgOperatorTimeSec),     // seconds
+        avgInspectionTime: Math.round(avgInspectionTimeSec), // seconds
+        totalCycleTime: Math.round(avgOperatorTimeSec + avgInspectionTimeSec), // seconds
         totalItemsCompleted: operatorTimes.length,
       },
       perMachine,

@@ -2,11 +2,22 @@
 
 import React from "react";
 import {
-  LineChart, Line, BarChart, Bar,
+  LineChart, Line, BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts";
 import { cn } from "@/lib/utils";
+
+// Shared tooltip style
+const tooltipStyle = {
+  backgroundColor: "rgba(255,255,255,0.96)",
+  border: "none",
+  borderRadius: "10px",
+  boxShadow: "0 8px 24px -4px rgba(0,0,0,0.12), 0 2px 8px -2px rgba(0,0,0,0.06)",
+  fontSize: "12px",
+  fontWeight: 600,
+  padding: "8px 14px",
+};
 
 // ============================================================
 // Defect Rate Trend Chart
@@ -29,28 +40,27 @@ export function DefectRateTrendChart({ data, title = "Defect Rate Trend (%)", co
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <h3 className="text-sm font-bold uppercase tracking-wider text-gray-800 mb-4 text-center">{title}</h3>
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+        <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <defs>
+            <linearGradient id="defectGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-              fontSize: "12px",
-            }}
-          />
-          <Line
+          <Tooltip contentStyle={tooltipStyle} />
+          <Area
             type="monotone"
             dataKey="value"
             stroke={color}
             strokeWidth={2.5}
-            dot={{ fill: color, strokeWidth: 2, r: 5 }}
-            activeDot={{ r: 7 }}
+            fill="url(#defectGrad)"
+            dot={{ fill: "white", stroke: color, strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, fill: color, stroke: "white", strokeWidth: 2 }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
@@ -61,32 +71,32 @@ export function DefectRateTrendChart({ data, title = "Defect Rate Trend (%)", co
 // ============================================================
 
 export function YieldTrendChart({ data, title = "Yield Trend (%)", height = 250 }: DefectRateTrendProps) {
+  const color = "#059669";
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <h3 className="text-sm font-bold uppercase tracking-wider text-gray-800 mb-4 text-center">{title}</h3>
       <ResponsiveContainer width="100%" height={height}>
-        <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+        <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+          <defs>
+            <linearGradient id="yieldGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.2} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-              fontSize: "12px",
-            }}
-          />
-          <Line
+          <Tooltip contentStyle={tooltipStyle} />
+          <Area
             type="monotone"
             dataKey="value"
-            stroke="#1e40af"
+            stroke={color}
             strokeWidth={2.5}
-            dot={{ fill: "#1e40af", strokeWidth: 2, r: 5 }}
-            activeDot={{ r: 7 }}
+            fill="url(#yieldGrad)"
+            dot={{ fill: "white", stroke: color, strokeWidth: 2, r: 4 }}
+            activeDot={{ r: 6, fill: color, stroke: "white", strokeWidth: 2 }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
@@ -103,26 +113,19 @@ interface DefectsBarChartProps {
 }
 
 export function DefectsBarChart({ data, title = "Defects by Inspection", height = 250 }: DefectsBarChartProps) {
+  const barColors = ["#1e3a5f", "#1e40af", "#3b82f6", "#60a5fa", "#93c5fd"];
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
       <h3 className="text-sm font-bold uppercase tracking-wider text-gray-800 mb-4 text-center">{title}</h3>
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#64748b" }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 11, fill: "#64748b" }} tickLine={false} axisLine={false} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-              fontSize: "12px",
-            }}
-          />
-          <Bar dataKey="value" fill="#1e40af" radius={[4, 4, 0, 0]} barSize={40}>
+          <Tooltip contentStyle={tooltipStyle} cursor={{ fill: "rgba(30,64,175,0.04)" }} />
+          <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={36}>
             {data.map((_, index) => (
-              <Cell key={index} fill={index === 0 ? "#1e3a5f" : index === 1 ? "#1e40af" : "#3b82f6"} />
+              <Cell key={index} fill={barColors[index % barColors.length]} />
             ))}
           </Bar>
         </BarChart>
@@ -148,28 +151,41 @@ interface DistributionPieChartProps {
 }
 
 export function DistributionPieChart({ data, title, height = 250 }: DistributionPieChartProps) {
+  // Dynamic radius based on container height to prevent overflow
+  const outerRadius = Math.min(Math.floor(height * 0.35), 80);
+  const innerRadius = Math.floor(outerRadius * 0.5);
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col items-center">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col items-center overflow-hidden">
       {title && <h3 className="text-sm font-bold uppercase tracking-wider text-gray-800 mb-2 text-center">{title}</h3>}
       <ResponsiveContainer width="100%" height={height}>
         <PieChart>
           <Pie
             data={data}
             cx="50%"
-            cy="50%"
-            innerRadius={0}
-            outerRadius={80}
-            paddingAngle={2}
+            cy="45%"
+            innerRadius={innerRadius}
+            outerRadius={outerRadius}
+            paddingAngle={3}
             dataKey="value"
-            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-            labelLine={false}
+            strokeWidth={2}
+            stroke="white"
           >
             {data.map((entry, index) => (
               <Cell key={index} fill={entry.color} />
             ))}
           </Pie>
-          <Legend verticalAlign="bottom" height={36} iconType="circle" />
-          <Tooltip />
+          <Legend
+            verticalAlign="bottom"
+            height={24}
+            iconType="circle"
+            iconSize={8}
+            wrapperStyle={{ fontSize: "11px", fontWeight: 600 }}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(value: number) => [value, "Parts"]}
+          />
         </PieChart>
       </ResponsiveContainer>
     </div>

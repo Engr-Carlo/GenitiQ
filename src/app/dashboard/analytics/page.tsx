@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, Badge, KPICard, LoadingSpinner } from "@/components/ui";
+import { formatDuration } from "@/lib/utils";
 import {
   DefectRateTrendChart,
   YieldTrendChart,
@@ -281,7 +282,7 @@ export default function AnalyticsPage() {
         />
         <KPICard
           title="Avg Operator Time"
-          value={avgOperatorTime > 0 ? `${avgOperatorTime} min` : "—"}
+          value={avgOperatorTime > 0 ? formatDuration(avgOperatorTime) : "—"}
           icon={<Clock size={24} />}
         />
       </div>
@@ -334,10 +335,10 @@ export default function AnalyticsPage() {
                         </td>
                         <td className="py-3 px-3">{m.inspectionCount}</td>
                         <td className="py-3 px-3">
-                          {m.avgOperatorTime != null ? `${m.avgOperatorTime} min` : "—"}
+                          {m.avgOperatorTime != null ? formatDuration(m.avgOperatorTime) : "—"}
                         </td>
                         <td className="py-3 px-3">
-                          {m.avgInspectionTime != null ? `${m.avgInspectionTime} min` : "—"}
+                          {m.avgInspectionTime != null ? formatDuration(m.avgInspectionTime) : "—"}
                         </td>
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-2">

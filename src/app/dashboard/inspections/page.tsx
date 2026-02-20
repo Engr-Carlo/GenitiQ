@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Badge, Button, DataTable, Modal, KPICard, LoadingSpinner } from "@/components/ui";
+import { formatDuration, exportToCsv } from "@/lib/utils";
 import {
   FileSearch, CheckCircle2, XCircle, Filter, Download, Eye, RotateCcw,
 } from "lucide-react";
@@ -37,6 +38,8 @@ const qaLabel = (qaDecision: string | null, status: string): string => {
   if (qaDecision === "APPROVED") return "Approved";
   if (qaDecision === "OVERRIDE_ACCEPT") return "Override";
   if (qaDecision === "CONFIRMED_REJECT") return "Confirmed";
+  if (qaDecision === "REWORK") return "Rework";
+  if (qaDecision === "SCRAP") return "Scrap";
   if (qaDecision === "RE_INSPECT") return "Re-inspect";
   return qaDecision;
 };
@@ -47,6 +50,8 @@ const qaLabelClass = (qaDecision: string | null, status: string): string => {
   if (qaDecision === "APPROVED") return "text-success-600";
   if (qaDecision === "OVERRIDE_ACCEPT") return "text-primary-600";
   if (qaDecision === "CONFIRMED_REJECT") return "text-danger-600";
+  if (qaDecision === "REWORK") return "text-warning-600";
+  if (qaDecision === "SCRAP") return "text-danger-700";
   if (qaDecision === "RE_INSPECT") return "text-orange-500";
   return "text-gray-500";
 };
@@ -179,7 +184,24 @@ export default function InspectionsPage() {
             </button>
           ))}
           <Button variant="ghost" size="sm" icon={<RotateCcw size={16} />} onClick={fetchInspections} />
-          <button className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 ml-1">
+          <button
+            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 ml-1"
+            onClick={() => {
+              const csvRows = filtered.map(item => ({
+                "Part No.": item.partNumber,
+                Operator: item.operatorName || "",
+                Machine: item.machine?.name || "",
+                Result: item.result || "",
+                Date: new Date(item.updatedAt).toLocaleDateString(),
+                Time: new Date(item.updatedAt).toLocaleTimeString(),
+                "QA Status": qaLabel(item.qaDecision, item.status),
+                "Op. Duration": item.operatorActualTime != null ? formatDuration(item.operatorActualTime) : "",
+                "Insp. Duration": item.inspectionActualTime != null ? formatDuration(item.inspectionActualTime) : "",
+                Notes: item.notes || "",
+              }));
+              exportToCsv("inspections.csv", csvRows);
+            }}
+          >
             <Download size={18} className="text-gray-500" />
           </button>
         </div>
@@ -251,7 +273,7 @@ export default function InspectionsPage() {
                 <p className="text-xs text-gray-500 font-bold uppercase">Operator Time</p>
                 <p className="font-medium">
                   {detailModal.inspection.operatorActualTime != null
-                    ? `${detailModal.inspection.operatorActualTime} min`
+                    ? formatDuration(detailModal.inspection.operatorActualTime)
                     : "—"}
                 </p>
               </div>
@@ -259,7 +281,7 @@ export default function InspectionsPage() {
                 <p className="text-xs text-gray-500 font-bold uppercase">Inspection Time</p>
                 <p className="font-medium">
                   {detailModal.inspection.inspectionActualTime != null
-                    ? `${detailModal.inspection.inspectionActualTime} min`
+                    ? formatDuration(detailModal.inspection.inspectionActualTime)
                     : "—"}
                 </p>
               </div>

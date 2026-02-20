@@ -41,9 +41,27 @@ export async function POST(req: NextRequest) {
       where: { operatorId: session.user.id, status: "ACTIVE" },
     });
 
+    // Machine restriction: part must be scanned on its designated machine
+    if (ref.machineId && machineSession) {
+      if (ref.machineId !== machineSession.machineId) {
+        const partMachineName = ref.machine?.name || ref.machineId;
+        return NextResponse.json(
+          { error: `This part is assigned to ${partMachineName}. You are checked into a different machine. Please use the correct machine.` },
+          { status: 400 }
+        );
+      }
+    } else if (ref.machineId && !machineSession) {
+      const partMachineName = ref.machine?.name || ref.machineId;
+      return NextResponse.json(
+        { error: `This part is assigned to ${partMachineName}. Please check into that machine first.` },
+        { status: 400 }
+      );
+    }
+
     const operatorTimeIn = new Date(timeIn);
     const operatorTimeOut = new Date();
-    const operatorActualTime = Math.round((operatorTimeOut.getTime() - operatorTimeIn.getTime()) / 60000);
+    // Store in SECONDS for sub-minute accuracy
+    const operatorActualTime = Math.round((operatorTimeOut.getTime() - operatorTimeIn.getTime()) / 1000);
 
     // Update PartReference with operator fields — no separate Inspection record
     const updated = await prisma.partReference.update({
@@ -90,7 +108,7 @@ export async function POST(req: NextRequest) {
         inspectorName: updated.inspector?.name ?? null,
         timeIn: operatorTimeIn.toISOString(),
         timeOut: operatorTimeOut.toISOString(),
-        duration: `${operatorActualTime} min`,
+        duration: operatorActualTime >= 60 ? `${(operatorActualTime / 60).toFixed(1)} min` : `${operatorActualTime}s`,
       },
     });
   } catch (error: unknown) {

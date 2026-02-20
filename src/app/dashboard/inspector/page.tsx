@@ -4,11 +4,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Card, Button, Badge, DataTable, KPICard, Modal, LoadingSpinner } from "@/components/ui";
+import { formatDuration, exportToCsv } from "@/lib/utils";
 import { DefectRateTrendChart, YieldTrendChart } from "@/components/charts";
 import {
   ClipboardCheck, Clock, CheckCircle2, XCircle,
   AlertTriangle, Timer, TrendingUp,
-  Shield, Eye, RotateCcw, Package, Activity, Cpu, LogIn, LogOut,
+  Shield, Eye, RotateCcw, Package, Activity, Cpu, LogIn, LogOut, Download, Wrench, Trash2,
 } from "lucide-react";
 
 // ============================================================
@@ -256,8 +257,8 @@ export default function InspectorDashboardPage() {
       setKpis({
         totalInspections: total,
         passRate: total > 0 ? `${((passed / total) * 100).toFixed(1)}%` : "0%",
-        avgOperatorTime: opTimes.length > 0 ? `${(opTimes.reduce((a: number, b: number) => a + b, 0) / opTimes.length).toFixed(1)} min` : "- min",
-        avgReviewTime: reviewTimes.length > 0 ? `${(reviewTimes.reduce((a: number, b: number) => a + b, 0) / reviewTimes.length).toFixed(1)} min` : "- min",
+        avgOperatorTime: opTimes.length > 0 ? formatDuration(Math.round(opTimes.reduce((a: number, b: number) => a + b, 0) / opTimes.length)) : "—",
+        avgReviewTime: reviewTimes.length > 0 ? formatDuration(Math.round(reviewTimes.reduce((a: number, b: number) => a + b, 0) / reviewTimes.length)) : "—",
         todayCompleted: todayCount,
         pendingReviews: formattedReview.length,
         totalReviews: withReview,
@@ -284,8 +285,8 @@ export default function InspectorDashboardPage() {
     }).catch(console.error);
   };
 
-  const handleSubmitReview = async (decision: "APPROVED" | "OVERRIDE_ACCEPT" | "CONFIRMED_REJECT") => {
-    if (!reviewModal.inspection || (!justification && decision !== "CONFIRMED_REJECT")) return;
+  const handleSubmitReview = async (decision: "APPROVED" | "REWORK" | "SCRAP" | "OVERRIDE_ACCEPT" | "CONFIRMED_REJECT") => {
+    if (!reviewModal.inspection || (!justification && decision !== "APPROVED")) return;
     setSubmitting(true);
 
     try {
@@ -565,8 +566,11 @@ export default function InspectorDashboardPage() {
       header: "Inspector Result",
       render: (item: InspectionForReview) => {
         if (!item.qaDecision) return <Badge variant="warning">Pending</Badge>;
-        const variant = item.qaDecision === "APPROVED" ? "success" : item.qaDecision === "CONFIRMED_REJECT" ? "danger" : "info";
-        return <Badge variant={variant}>{item.qaDecision.replace("_", " ")}</Badge>;
+        const variant = item.qaDecision === "APPROVED" ? "success"
+          : item.qaDecision === "SCRAP" || item.qaDecision === "CONFIRMED_REJECT" ? "danger"
+          : item.qaDecision === "REWORK" || item.qaDecision === "RE_INSPECT" ? "warning"
+          : "info";
+        return <Badge variant={variant}>{item.qaDecision.replace(/_/g, " ")}</Badge>;
       },
     },
     {
@@ -905,10 +909,39 @@ export default function InspectorDashboardPage() {
 
           {/* Full Inspection History Table (Table 3) */}
           <div>
-            <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
-              <Shield size={22} className="text-primary-600" />
-              Inspection History
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 flex items-center gap-2">
+                <Shield size={22} className="text-primary-600" />
+                Inspection History
+              </h2>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Download size={16} />}
+                onClick={() => {
+                  const csvRows = allInspections.map((i) => ({
+                    "Part No.": i.partNumber,
+                    Operator: i.operatorName,
+                    "Op. Result": i.operatorResult || "",
+                    "Op. Time In": i.operatorStartedAt ? new Date(i.operatorStartedAt).toLocaleString() : "",
+                    "Op. Time Out": i.operatorCompletedAt ? new Date(i.operatorCompletedAt).toLocaleString() : "",
+                    Barcode: i.scannedBarcode || "",
+                    "Est. Time": i.estimatedTime ? `${i.estimatedTime} min` : "",
+                    Deadline: i.deadline ? new Date(i.deadline).toLocaleDateString() : "",
+                    Qty: i.quantity ?? "",
+                    "Machine Type": i.machineType,
+                    Priority: i.priority || "",
+                    "Inspector Result": i.qaDecision || "Pending",
+                    "Insp. Time In": i.inspectionStartedAt ? new Date(i.inspectionStartedAt).toLocaleString() : "",
+                    "Insp. Time Out": i.inspectionCompletedAt ? new Date(i.inspectionCompletedAt).toLocaleString() : "",
+                  }));
+                  exportToCsv("inspection-history.csv", csvRows);
+                }}
+                disabled={allInspections.length === 0}
+              >
+                Download CSV
+              </Button>
+            </div>
             <DataTable columns={historyColumns} data={allInspections} emptyMessage="No inspections recorded yet" />
           </div>
         </>
@@ -1070,8 +1103,8 @@ export default function InspectorDashboardPage() {
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase">Operator Time</p>
                 <p className="text-sm font-medium">
-                  {reviewModal.inspection.operatorActualTime
-                    ? `${reviewModal.inspection.operatorActualTime.toFixed(1)} min`
+                  {reviewModal.inspection.operatorActualTime != null
+                    ? formatDuration(reviewModal.inspection.operatorActualTime)
                     : "-"}
                 </p>
               </div>
@@ -1108,47 +1141,32 @@ export default function InspectorDashboardPage() {
 
             {/* Actions */}
             <div className="flex gap-3 justify-end pt-2">
-              {reviewModal.inspection.operatorResult === "ACCEPTED" ? (
-                <>
-                  <Button
-                    variant="success"
-                    icon={<CheckCircle2 size={18} />}
-                    onClick={() => handleSubmitReview("APPROVED")}
-                    loading={submitting}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    variant="danger"
-                    icon={<XCircle size={18} />}
-                    onClick={() => handleSubmitReview("OVERRIDE_ACCEPT")}
-                    loading={submitting}
-                    disabled={!justification}
-                  >
-                    Override → Reject
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="danger"
-                    icon={<XCircle size={18} />}
-                    onClick={() => handleSubmitReview("CONFIRMED_REJECT")}
-                    loading={submitting}
-                  >
-                    Confirm Rejection
-                  </Button>
-                  <Button
-                    variant="success"
-                    icon={<RotateCcw size={18} />}
-                    onClick={() => handleSubmitReview("OVERRIDE_ACCEPT")}
-                    loading={submitting}
-                    disabled={!justification}
-                  >
-                    Override → Accept
-                  </Button>
-                </>
-              )}
+              <Button
+                variant="success"
+                icon={<CheckCircle2 size={18} />}
+                onClick={() => handleSubmitReview("APPROVED")}
+                loading={submitting}
+              >
+                Approved
+              </Button>
+              <Button
+                variant="warning"
+                icon={<Wrench size={18} />}
+                onClick={() => handleSubmitReview("REWORK")}
+                loading={submitting}
+                disabled={!justification}
+              >
+                Rework
+              </Button>
+              <Button
+                variant="danger"
+                icon={<Trash2 size={18} />}
+                onClick={() => handleSubmitReview("SCRAP")}
+                loading={submitting}
+                disabled={!justification}
+              >
+                Scrap
+              </Button>
             </div>
           </div>
         )}

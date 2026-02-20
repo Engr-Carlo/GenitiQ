@@ -22,18 +22,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ success: true });
   }
 
-  if (!qaDecision || !qaJustification) {
+  if (!qaDecision || (!qaJustification && qaDecision !== "APPROVED")) {
     return NextResponse.json({ error: "Decision and justification required" }, { status: 400 });
   }
 
   const now = new Date();
   const startedAt = inspectionStartedAt ? new Date(inspectionStartedAt) : null;
+  // Store in SECONDS for sub-minute accuracy
   const inspectorActualTime = startedAt
-    ? Math.round((now.getTime() - startedAt.getTime()) / 60000)
+    ? Math.round((now.getTime() - startedAt.getTime()) / 1000)
     : null;
 
-  const isReInspect = qaDecision === "RE_INSPECT";
-  const newStatus = isReInspect ? "RE_INSPECT" : "COMPLETED";
+  const isRework = qaDecision === "RE_INSPECT" || qaDecision === "REWORK";
+  const newStatus = isRework ? "RE_INSPECT" : "COMPLETED";
 
   const part = await prisma.partReference.update({
     where: { id },
@@ -46,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       inspectorTimeOut: now,
       inspectorActualTime: inspectorActualTime ?? undefined,
       status: newStatus,
-      ...(isReInspect && {
+      ...(isRework && {
         operatorResult: null,
         operatorTimeIn: null,
         operatorTimeOut: null,

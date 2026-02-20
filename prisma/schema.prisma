@@ -46,7 +46,10 @@ enum QADecision {
   APPROVED
   OVERRIDE_ACCEPT
   OVERRIDE_REJECT
+  CONFIRMED_REJECT
   RE_INSPECT
+  REWORK
+  SCRAP
 }
 
 enum SessionStatus {

@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 // Button
 // ============================================================
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "danger" | "success" | "ghost" | "outline";
+  variant?: "primary" | "secondary" | "danger" | "success" | "warning" | "ghost" | "outline";
   size?: "sm" | "md" | "lg";
   loading?: boolean;
   icon?: React.ReactNode;
@@ -32,6 +32,7 @@ export function Button({
     secondary: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 focus:ring-primary-500",
     danger: "bg-danger-600 text-white hover:bg-danger-700 focus:ring-danger-500",
     success: "bg-success-600 text-white hover:bg-success-700 focus:ring-success-500",
+    warning: "bg-warning-500 text-white hover:bg-warning-600 focus:ring-warning-400",
     ghost: "text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus:ring-gray-500",
     outline: "border-2 border-primary-800 text-primary-800 hover:bg-primary-800 hover:text-white focus:ring-primary-500",
   };

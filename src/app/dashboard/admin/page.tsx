@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Card, DataTable, Badge, KPICard, LoadingSpinner, Button } from "@/components/ui";
+import { formatDuration, exportToCsv } from "@/lib/utils";
 import {
   DefectRateTrendChart,
   YieldTrendChart,
@@ -64,6 +65,14 @@ interface ProcessedPart {
   inspectorName: string | null;
   createdAt: string;
   qaReviewedAt: string | null;
+  operatorTimeIn: string | null;
+  operatorTimeOut: string | null;
+  estimatedTime: number | null;
+  deadline: string | null;
+  quantity: number | null;
+  priority: string | null;
+  inspectorTimeIn: string | null;
+  inspectorTimeOut: string | null;
 }
 
 // ============================================================
@@ -159,6 +168,14 @@ export default function AdminDashboardPage() {
           inspectorName: p.qaReviewerName || null,  // route returns qaReviewerName
           createdAt: p.createdAt,
           qaReviewedAt: p.qaReviewedAt || p.inspectionCompletedAt || null,
+          operatorTimeIn: p.operatorStartedAt || null,
+          operatorTimeOut: p.operatorCompletedAt || null,
+          estimatedTime: p.estimatedTime ?? null,
+          deadline: p.deadline ?? null,
+          quantity: p.quantity ?? null,
+          priority: p.priority ?? null,
+          inspectorTimeIn: p.inspectionStartedAt || null,
+          inspectorTimeOut: p.inspectionCompletedAt || null,
         }));
         setAllProcessedParts(parts);
       } setPartReferences(pending);
@@ -211,7 +228,7 @@ export default function AdminDashboardPage() {
     const defects = items.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT").length;
     return { label: type, value: items.length > 0 ? Math.round((defects / items.length) * 1000) / 10 : 0 };
   });
-  const totalDefects = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT").length;
+    const totalDefects = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT" || p.qaDecision === "SCRAP").length;
   const overallRate = allProcessedParts.length > 0 ? Math.round((totalDefects / allProcessedParts.length) * 1000) / 10 : 0;
   defectRateTrend.push({ label: "Overall", value: overallRate });
 
@@ -222,12 +239,14 @@ export default function AdminDashboardPage() {
   });
 
   const totalParts = allProcessedParts.length;
-  const passedCount = allProcessedParts.filter(p => p.qaDecision === "APPROVED").length;
-  const failedCount = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT").length;
-  const pendingCount = totalParts - passedCount - failedCount;
+  const passedCount = allProcessedParts.filter(p => p.qaDecision === "APPROVED").length;    const scrapCount = allProcessedParts.filter(p => p.qaDecision === "SCRAP").length;
+    const reworkCount = allProcessedParts.filter(p => p.qaDecision === "REWORK").length;  const failedCount = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT").length;
+  const pendingCount = totalParts - passedCount - failedCount - scrapCount - reworkCount;
   const distributionData = [
     { name: "Approved", value: passedCount, color: "#1e40af" },
     { name: "Rejected", value: failedCount, color: "#dc2626" },
+    { name: "Scrap", value: scrapCount, color: "#991b1b" },
+    { name: "Rework", value: reworkCount, color: "#d97706" },
     { name: "Pending/Other", value: pendingCount, color: "#94a3b8" },
   ].filter(d => d.value > 0);
 
@@ -266,8 +285,11 @@ export default function AdminDashboardPage() {
       header: "QA Decision",
       render: (item: any) => {
         if (!item.qaDecision) return <Badge variant="warning">Pending</Badge>;
-        const variant = item.qaDecision === "APPROVED" ? "success" : item.qaDecision === "CONFIRMED_REJECT" ? "danger" : "info";
-        return <Badge variant={variant}>{item.qaDecision.replace("_", " ")}</Badge>;
+        const variant = item.qaDecision === "APPROVED" ? "success"
+          : item.qaDecision === "SCRAP" || item.qaDecision === "CONFIRMED_REJECT" ? "danger"
+          : item.qaDecision === "REWORK" ? "warning"
+          : "info";
+        return <Badge variant={variant}>{item.qaDecision.replace(/_/g, " ")}</Badge>;
       },
     },
     {
@@ -342,21 +364,7 @@ export default function AdminDashboardPage() {
 
   const processedPartsColumns = [
     { key: "partNumber", header: "Part No.", className: "font-bold" },
-    {
-      key: "scannedBarcode",
-      header: "Barcode",
-      render: (item: ProcessedPart) => (
-        <span className="font-mono text-sm">{item.scannedBarcode || "-"}</span>
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (item: ProcessedPart) => {
-        const v = item.status === "COMPLETED" ? "success" : item.status === "OPERATOR_DONE" ? "warning" : item.status === "RE_INSPECT" ? "info" : "gray";
-        return <Badge variant={v}>{item.status.replace("_", " ")}</Badge>;
-      },
-    },
+    { key: "operatorName", header: "Operator", className: "font-bold" },
     {
       key: "operatorResult",
       header: "Op. Result",
@@ -366,37 +374,81 @@ export default function AdminDashboardPage() {
           : <span className="text-gray-400">—</span>,
     },
     {
+      key: "operatorTimeIn",
+      header: "Op. Time In",
+      render: (item: ProcessedPart) =>
+        item.operatorTimeIn ? new Date(item.operatorTimeIn).toLocaleTimeString() : "—",
+    },
+    {
+      key: "operatorTimeOut",
+      header: "Op. Time Out",
+      render: (item: ProcessedPart) =>
+        item.operatorTimeOut ? new Date(item.operatorTimeOut).toLocaleTimeString() : "—",
+    },
+    {
+      key: "scannedBarcode",
+      header: "Barcode",
+      render: (item: ProcessedPart) => (
+        <span className="font-mono text-sm">{item.scannedBarcode || "—"}</span>
+      ),
+    },
+    {
+      key: "estimatedTime",
+      header: "Est. Time",
+      render: (item: ProcessedPart) =>
+        item.estimatedTime ? `${item.estimatedTime} min` : "—",
+    },
+    {
+      key: "deadline",
+      header: "Deadline",
+      render: (item: ProcessedPart) =>
+        item.deadline ? new Date(item.deadline).toLocaleDateString() : "—",
+    },
+    {
+      key: "quantity",
+      header: "Qty",
+      render: (item: ProcessedPart) =>
+        item.quantity ? <span className="font-bold">{item.quantity}</span> : "—",
+    },
+    {
+      key: "machineType",
+      header: "Machine Type",
+      render: (item: ProcessedPart) => (
+        <Badge variant={item.machineType === "VMM" ? "info" : "warning"}>{item.machineType}</Badge>
+      ),
+    },
+    {
+      key: "priority",
+      header: "Priority",
+      render: (item: ProcessedPart) => {
+        const p = item.priority || "LOW";
+        const v = p === "HIGH" ? "danger" : p === "MEDIUM" ? "warning" : "info";
+        return <Badge variant={v}>{p}</Badge>;
+      },
+    },
+    {
       key: "qaDecision",
-      header: "Inspector Decision",
+      header: "Inspector Result",
       render: (item: ProcessedPart) => {
         if (!item.qaDecision) return <Badge variant="warning">Pending</Badge>;
-        const v = item.qaDecision === "APPROVED" ? "success" : item.qaDecision === "CONFIRMED_REJECT" ? "danger" : "info";
+        const v = item.qaDecision === "APPROVED" ? "success"
+          : item.qaDecision === "SCRAP" || item.qaDecision === "CONFIRMED_REJECT" ? "danger"
+          : item.qaDecision === "REWORK" ? "warning"
+          : "info";
         return <Badge variant={v}>{item.qaDecision.replace(/_/g, " ")}</Badge>;
       },
     },
     {
-      key: "machineName",
-      header: "Machine",
-      render: (item: ProcessedPart) => (
-        <Badge variant={item.machineType === "VMM" ? "info" : "warning"}>{item.machineName}</Badge>
-      ),
-    },
-    { key: "operatorName", header: "Operator", className: "font-bold" },
-    {
-      key: "inspectorName",
-      header: "Inspector",
-      render: (item: ProcessedPart) => item.inspectorName || <span className="text-gray-400">—</span>,
-    },
-    {
-      key: "createdAt",
-      header: "Scanned",
-      render: (item: ProcessedPart) => new Date(item.createdAt).toLocaleDateString(),
-    },
-    {
-      key: "qaReviewedAt",
-      header: "Reviewed",
+      key: "inspectorTimeIn",
+      header: "Insp. Time In",
       render: (item: ProcessedPart) =>
-        item.qaReviewedAt ? new Date(item.qaReviewedAt).toLocaleDateString() : <span className="text-gray-400">—</span>,
+        item.inspectorTimeIn ? new Date(item.inspectorTimeIn).toLocaleTimeString() : "—",
+    },
+    {
+      key: "inspectorTimeOut",
+      header: "Insp. Time Out",
+      render: (item: ProcessedPart) =>
+        item.inspectorTimeOut ? new Date(item.inspectorTimeOut).toLocaleTimeString() : "—",
     },
   ];
 
@@ -421,17 +473,17 @@ export default function AdminDashboardPage() {
         />
         <KPICard
           title="Avg Operator Time"
-          value={timing.avgQueueTime ? `${timing.avgQueueTime.toFixed(1)} min` : "- min"}
+          value={timing.avgQueueTime ? formatDuration(timing.avgQueueTime) : "—"}
           icon={<Timer size={28} />}
         />
         <KPICard
           title="Avg Review Time"
-          value={timing.avgInspectionTime ? `${timing.avgInspectionTime.toFixed(1)} min` : "- min"}
+          value={timing.avgInspectionTime ? formatDuration(timing.avgInspectionTime) : "—"}
           icon={<Clock size={28} />}
         />
         <KPICard
           title="Total Cycle Time"
-          value={timing.totalCycleTime ? `${timing.totalCycleTime.toFixed(1)} min` : "- min"}
+          value={timing.totalCycleTime ? formatDuration(timing.totalCycleTime) : "—"}
           icon={<Activity size={28} />}
         />
       </div>
@@ -485,12 +537,42 @@ export default function AdminDashboardPage() {
 
       {/* Processed & Inspected Parts Summary Table */}
       <div>
-        <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
-          <CheckCircle2 size={22} className="text-success-500" />
-          Processed &amp; Inspected Parts
-          <Badge variant="success" className="ml-2">{allProcessedParts.filter(p => p.status === "COMPLETED").length} completed</Badge>
-          <Badge variant="warning" className="ml-1">{allProcessedParts.filter(p => p.status === "OPERATOR_DONE").length} awaiting QA</Badge>
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 flex items-center gap-2">
+            <CheckCircle2 size={22} className="text-success-500" />
+            Processed &amp; Inspected Parts
+            <Badge variant="success" className="ml-2">{allProcessedParts.filter(p => p.status === "COMPLETED").length} completed</Badge>
+            <Badge variant="warning" className="ml-1">{allProcessedParts.filter(p => p.status === "OPERATOR_DONE").length} awaiting QA</Badge>
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            icon={<Download size={16} />}
+            onClick={() => {
+              const csvRows = allProcessedParts.map(p => ({
+                "Part No.": p.partNumber,
+                Operator: p.operatorName,
+                "Op. Result": p.operatorResult || "",
+                "Op. Time In": p.operatorTimeIn ? new Date(p.operatorTimeIn).toLocaleString() : "",
+                "Op. Time Out": p.operatorTimeOut ? new Date(p.operatorTimeOut).toLocaleString() : "",
+                Barcode: p.scannedBarcode || "",
+                "Est. Time": p.estimatedTime ? `${p.estimatedTime} min` : "",
+                Deadline: p.deadline ? new Date(p.deadline).toLocaleDateString() : "",
+                Qty: p.quantity ?? "",
+                "Machine Type": p.machineType,
+                Priority: p.priority || "",
+                "QA Decision": p.qaDecision || "Pending",
+                Inspector: p.inspectorName || "",
+                "Insp. Time In": p.inspectorTimeIn ? new Date(p.inspectorTimeIn).toLocaleString() : "",
+                "Insp. Time Out": p.inspectorTimeOut ? new Date(p.inspectorTimeOut).toLocaleString() : "",
+              }));
+              exportToCsv("processed-parts.csv", csvRows);
+            }}
+            className="font-bold"
+          >
+            Download CSV
+          </Button>
+        </div>
         <DataTable
           columns={processedPartsColumns}
           data={allProcessedParts}
