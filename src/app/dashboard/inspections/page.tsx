@@ -1,76 +1,138 @@
 "use client";
 
-import React, { useState } from "react";
-import { Badge, Button, DataTable, Modal, KPICard } from "@/components/ui";
+import React, { useState, useEffect, useCallback } from "react";
+import { Badge, Button, DataTable, Modal, KPICard, LoadingSpinner } from "@/components/ui";
 import {
-  FileSearch, CheckCircle2, XCircle, Filter, Download, Eye,
+  FileSearch, CheckCircle2, XCircle, Filter, Download, Eye, RotateCcw,
 } from "lucide-react";
 
-const mockInspections = [
-  { id: "1", partNumber: "PN1001", inspector: "J. Dela Cruz", machine: "VMM-1", result: "ACCEPTED" as const, date: "Jan 23, 2026", time: "09:15 AM", qaStatus: "N/A" },
-  { id: "2", partNumber: "PN1003", inspector: "A. Santos", machine: "VMM-2", result: "REJECTED" as const, date: "Jan 23, 2026", time: "10:30 AM", qaStatus: "Pending" },
-  { id: "3", partNumber: "PN1005", inspector: "J. Dela Cruz", machine: "CMM-1", result: "ACCEPTED" as const, date: "Jan 23, 2026", time: "11:00 AM", qaStatus: "N/A" },
-  { id: "4", partNumber: "PN1007", inspector: "A. Santos", machine: "CMM-2", result: "REJECTED" as const, date: "Jan 22, 2026", time: "02:45 PM", qaStatus: "Override" },
-  { id: "5", partNumber: "PN1010", inspector: "J. Dela Cruz", machine: "VMM-1", result: "ACCEPTED" as const, date: "Jan 22, 2026", time: "04:20 PM", qaStatus: "N/A" },
-  { id: "6", partNumber: "PN1012", inspector: "J. Dela Cruz", machine: "VMM-2", result: "ACCEPTED" as const, date: "Jan 21, 2026", time: "08:00 AM", qaStatus: "N/A" },
-  { id: "7", partNumber: "PN1015", inspector: "V. De Jose", machine: "VMM-3", result: "REJECTED" as const, date: "Jan 21, 2026", time: "10:10 AM", qaStatus: "Re-inspect" },
-  { id: "8", partNumber: "PN1018", inspector: "A. Santos", machine: "CMM-1", result: "ACCEPTED" as const, date: "Jan 20, 2026", time: "01:30 PM", qaStatus: "N/A" },
-];
+// ============================================================
+// Types
+// ============================================================
+interface InspectionRecord {
+  id: string;
+  partNumber: string;
+  operatorName: string | null;
+  result: "ACCEPTED" | "REJECTED" | null;
+  machine: { id: string; name: string; type: string } | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  qaDecision: string | null;
+  qaReviewedAt: string | null;
+  qaReviewerName: string | null;
+  operatorActualTime: number | null;
+  inspectionActualTime: number | null;
+  notes: string | null;
+}
 
 const resultVariant: Record<string, "success" | "danger"> = {
   ACCEPTED: "success",
   REJECTED: "danger",
 };
 
+const qaLabel = (qaDecision: string | null, status: string): string => {
+  if (status === "OPERATOR_DONE") return "Pending QA";
+  if (!qaDecision) return "—";
+  if (qaDecision === "APPROVED") return "Approved";
+  if (qaDecision === "OVERRIDE_ACCEPT") return "Override";
+  if (qaDecision === "CONFIRMED_REJECT") return "Confirmed";
+  if (qaDecision === "RE_INSPECT") return "Re-inspect";
+  return qaDecision;
+};
+
+const qaLabelClass = (qaDecision: string | null, status: string): string => {
+  if (status === "OPERATOR_DONE") return "text-warning-600";
+  if (!qaDecision) return "text-gray-400";
+  if (qaDecision === "APPROVED") return "text-success-600";
+  if (qaDecision === "OVERRIDE_ACCEPT") return "text-primary-600";
+  if (qaDecision === "CONFIRMED_REJECT") return "text-danger-600";
+  if (qaDecision === "RE_INSPECT") return "text-orange-500";
+  return "text-gray-500";
+};
+
 export default function InspectionsPage() {
+  const [loading, setLoading] = useState(true);
+  const [inspections, setInspections] = useState<InspectionRecord[]>([]);
   const [filterResult, setFilterResult] = useState<"ALL" | "ACCEPTED" | "REJECTED">("ALL");
-  const [detailModal, setDetailModal] = useState<{ open: boolean; inspection: (typeof mockInspections)[0] | null }>({
+  const [detailModal, setDetailModal] = useState<{ open: boolean; inspection: InspectionRecord | null }>({
     open: false,
     inspection: null,
   });
 
-  const filtered = filterResult === "ALL" ? mockInspections : mockInspections.filter((i) => i.result === filterResult);
+  const fetchInspections = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/inspections?limit=200");
+      const json = await res.json();
+      setInspections(json.data || []);
+    } catch (e) {
+      console.error("Failed to fetch inspections:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchInspections(); }, [fetchInspections]);
+
+  const filtered = filterResult === "ALL"
+    ? inspections
+    : inspections.filter((i) => i.result === filterResult);
+
+  const acceptedCount = inspections.filter((i) => i.result === "ACCEPTED").length;
+  const rejectedCount = inspections.filter((i) => i.result === "REJECTED").length;
+  const pendingQACount = inspections.filter((i) => i.status === "OPERATOR_DONE").length;
 
   const columns = [
     { key: "partNumber", header: "Part No.", className: "font-bold" },
-    { key: "inspector", header: "Inspector" },
-    { key: "machine", header: "Machine" },
+    {
+      key: "operatorName",
+      header: "Operator",
+      render: (item: InspectionRecord) => item.operatorName || <span className="text-gray-400">—</span>,
+    },
+    {
+      key: "machine",
+      header: "Machine",
+      render: (item: InspectionRecord) => item.machine?.name || <span className="text-gray-400">—</span>,
+    },
     {
       key: "result",
       header: "Result",
-      render: (item: (typeof mockInspections)[0]) => (
-        <Badge variant={resultVariant[item.result]}>
-          {item.result === "ACCEPTED" && <CheckCircle2 size={12} className="inline mr-1" />}
-          {item.result === "REJECTED" && <XCircle size={12} className="inline mr-1" />}
-          {item.result}
-        </Badge>
-      ),
+      render: (item: InspectionRecord) =>
+        item.result ? (
+          <Badge variant={resultVariant[item.result]}>
+            {item.result === "ACCEPTED" && <CheckCircle2 size={12} className="inline mr-1" />}
+            {item.result === "REJECTED" && <XCircle size={12} className="inline mr-1" />}
+            {item.result}
+          </Badge>
+        ) : (
+          <span className="text-gray-400 text-sm">—</span>
+        ),
     },
-    { key: "date", header: "Date" },
-    { key: "time", header: "Time" },
     {
-      key: "qaStatus",
+      key: "updatedAt",
+      header: "Date",
+      render: (item: InspectionRecord) => new Date(item.updatedAt).toLocaleDateString(),
+    },
+    {
+      key: "time",
+      header: "Time",
+      render: (item: InspectionRecord) =>
+        new Date(item.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    },
+    {
+      key: "qaDecision",
       header: "QA Status",
-      render: (item: (typeof mockInspections)[0]) => (
-        <span
-          className={`text-xs font-bold ${
-            item.qaStatus === "Pending"
-              ? "text-warning-600"
-              : item.qaStatus === "Override"
-              ? "text-primary-600"
-              : item.qaStatus === "Re-inspect"
-              ? "text-danger-600"
-              : "text-gray-400"
-          }`}
-        >
-          {item.qaStatus}
+      render: (item: InspectionRecord) => (
+        <span className={`text-xs font-bold ${qaLabelClass(item.qaDecision, item.status)}`}>
+          {qaLabel(item.qaDecision, item.status)}
         </span>
       ),
     },
     {
       key: "actions",
       header: "",
-      render: (item: (typeof mockInspections)[0]) => (
+      render: (item: InspectionRecord) => (
         <Button
           size="sm"
           variant="ghost"
@@ -80,6 +142,14 @@ export default function InspectionsPage() {
       ),
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -108,7 +178,8 @@ export default function InspectionsPage() {
               {f === "ALL" ? "All" : f === "ACCEPTED" ? "Accepted" : "Rejected"}
             </button>
           ))}
-          <button className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 ml-2">
+          <Button variant="ghost" size="sm" icon={<RotateCcw size={16} />} onClick={fetchInspections} />
+          <button className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 ml-1">
             <Download size={18} className="text-gray-500" />
           </button>
         </div>
@@ -116,27 +187,21 @@ export default function InspectionsPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KPICard title="Total Inspections" value={String(mockInspections.length)} icon={<FileSearch size={24} />} />
-        <KPICard
-          title="Accepted"
-          value={String(mockInspections.filter((i) => i.result === "ACCEPTED").length)}
-          icon={<CheckCircle2 size={24} />}
-          variant="highlight"
-        />
-        <KPICard
-          title="Rejected"
-          value={String(mockInspections.filter((i) => i.result === "REJECTED").length)}
-          icon={<XCircle size={24} />}
-        />
-        <KPICard
-          title="Pending QA"
-          value={String(mockInspections.filter((i) => i.qaStatus === "Pending").length)}
-          icon={<Filter size={24} />}
-        />
+        <KPICard title="Total Inspections" value={String(inspections.length)} icon={<FileSearch size={24} />} />
+        <KPICard title="Accepted" value={String(acceptedCount)} icon={<CheckCircle2 size={24} />} variant="highlight" />
+        <KPICard title="Rejected" value={String(rejectedCount)} icon={<XCircle size={24} />} />
+        <KPICard title="Pending QA" value={String(pendingQACount)} icon={<Filter size={24} />} />
       </div>
 
       {/* Table */}
-      <DataTable columns={columns} data={filtered} />
+      {filtered.length === 0 ? (
+        <div className="text-center py-16">
+          <FileSearch size={48} className="mx-auto text-gray-300 mb-4" />
+          <p className="text-gray-400 font-bold">No inspection records found</p>
+        </div>
+      ) : (
+        <DataTable columns={columns} data={filtered} />
+      )}
 
       {/* Detail Modal */}
       <Modal
@@ -153,28 +218,66 @@ export default function InspectionsPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase">Result</p>
-                <Badge variant={resultVariant[detailModal.inspection.result]}>{detailModal.inspection.result}</Badge>
+                {detailModal.inspection.result ? (
+                  <Badge variant={resultVariant[detailModal.inspection.result]}>
+                    {detailModal.inspection.result}
+                  </Badge>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
               </div>
               <div>
-                <p className="text-xs text-gray-500 font-bold uppercase">Inspector</p>
-                <p className="font-medium">{detailModal.inspection.inspector}</p>
+                <p className="text-xs text-gray-500 font-bold uppercase">Operator</p>
+                <p className="font-medium">{detailModal.inspection.operatorName || "—"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase">Machine</p>
-                <p className="font-medium">{detailModal.inspection.machine}</p>
+                <p className="font-medium">{detailModal.inspection.machine?.name || "—"}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase">Date</p>
-                <p className="font-medium">{detailModal.inspection.date}</p>
+                <p className="font-medium">{new Date(detailModal.inspection.updatedAt).toLocaleDateString()}</p>
               </div>
               <div>
                 <p className="text-xs text-gray-500 font-bold uppercase">Time</p>
-                <p className="font-medium">{detailModal.inspection.time}</p>
+                <p className="font-medium">
+                  {new Date(detailModal.inspection.updatedAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase">Operator Time</p>
+                <p className="font-medium">
+                  {detailModal.inspection.operatorActualTime != null
+                    ? `${detailModal.inspection.operatorActualTime} min`
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-bold uppercase">Inspection Time</p>
+                <p className="font-medium">
+                  {detailModal.inspection.inspectionActualTime != null
+                    ? `${detailModal.inspection.inspectionActualTime} min`
+                    : "—"}
+                </p>
               </div>
               <div className="col-span-2">
-                <p className="text-xs text-gray-500 font-bold uppercase">QA Status</p>
-                <p className="font-medium">{detailModal.inspection.qaStatus}</p>
+                <p className="text-xs text-gray-500 font-bold uppercase">QA Decision</p>
+                <p className={`font-bold text-sm ${qaLabelClass(detailModal.inspection.qaDecision, detailModal.inspection.status)}`}>
+                  {qaLabel(detailModal.inspection.qaDecision, detailModal.inspection.status)}
+                </p>
+                {detailModal.inspection.qaReviewerName && (
+                  <p className="text-xs text-gray-400 mt-1">by {detailModal.inspection.qaReviewerName}</p>
+                )}
               </div>
+              {detailModal.inspection.notes && (
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-500 font-bold uppercase">Notes</p>
+                  <p className="font-medium text-sm">{detailModal.inspection.notes}</p>
+                </div>
+              )}
             </div>
           </div>
         )}
