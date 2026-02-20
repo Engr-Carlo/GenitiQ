@@ -175,11 +175,23 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetch("/api/admin/barcode-reference?download=template");
       const blob = await res.blob();
-      const url computed from real inspections
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "barcode-reference-template.csv";
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("CSV download failed:", e);
+    } finally {
+      setDownloadingCsv(false);
+    }
+  };
+
+  // Chart data computed from real inspections
   const dayMs = 24 * 60 * 60 * 1000;
   const nowMs = Date.now();
 
-  // Daily yield trend for last 10 days (fraction 0–1)
   const yieldTrend = Array.from({ length: 10 }, (_, i) => {
     const dayEnd = nowMs - (9 - i) * dayMs;
     const dayStart = dayEnd - dayMs;
@@ -193,26 +205,22 @@ export default function AdminDashboardPage() {
     return { label: dayLabel, value: reviewed > 0 ? approved / reviewed : 0 };
   });
 
-  // Defect rate by machine type
   const machineTypes = ["VMM", "CMM"];
   const defectRateTrend = machineTypes.map(type => {
     const items = allProcessedParts.filter(p => p.machineType === type);
     const defects = items.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT").length;
     return { label: type, value: items.length > 0 ? Math.round((defects / items.length) * 1000) / 10 : 0 };
   });
-  // Add "Overall" category
   const totalDefects = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT" || p.qaDecision === "OVERRIDE_ACCEPT").length;
   const overallRate = allProcessedParts.length > 0 ? Math.round((totalDefects / allProcessedParts.length) * 1000) / 10 : 0;
   defectRateTrend.push({ label: "Overall", value: overallRate });
 
-  // Defects by machine type bar chart
   const defectsByInspection = machineTypes.map(type => {
     const items = allProcessedParts.filter(p => p.machineType === type);
     const defects = items.filter(p => p.qaDecision === "CONFIRMED_REJECT").length;
     return { label: type, value: defects };
   });
 
-  // Distribution pie chart
   const totalParts = allProcessedParts.length;
   const passedCount = allProcessedParts.filter(p => p.qaDecision === "APPROVED").length;
   const failedCount = allProcessedParts.filter(p => p.qaDecision === "CONFIRMED_REJECT").length;
@@ -221,28 +229,7 @@ export default function AdminDashboardPage() {
     { name: "Approved", value: passedCount, color: "#1e40af" },
     { name: "Rejected", value: failedCount, color: "#dc2626" },
     { name: "Pending/Other", value: pendingCount, color: "#94a3b8" },
-  ].filter(d => d.value > 0) { label: "Sun", value: 0.75 },
-    { label: "Mon", value: 0.78 },
-    { label: "Tue", value: 0.76 },
-    { label: "Wed", value: 0.78 },
-    { label: "Thu", value: 0.80 },
-    { label: "Fri", value: 0.82 },
-    { label: "Sat", value: 0.80 },
-    { label: "Sun", value: 0.83 },
-    { label: "Mon", value: 0.85 },
-    { label: "Tue", value: 0.87 },
-  ];
-
-  const defectsByInspection = [
-    { label: "Incoming", value: 18 },
-    { label: "In-Process", value: 12 },
-    { label: "Final", value: 5 },
-  ];
-
-  const distributionData = [
-    { name: "Passed", value: 75, color: "#1e40af" },
-    { name: "Failed", value: 25, color: "#60a5fa" },
-  ];
+  ].filter(d => d.value > 0);
 
   const inspectionColumns = [
     {
