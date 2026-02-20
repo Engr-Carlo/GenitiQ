@@ -120,7 +120,7 @@ export default function AdminDashboardPage() {
 
       if (timingData.data) {
         setTiming({
-          avgQueueTime: timingData.data.summary?.avgQueueTime ?? null,
+          avgQueueTime: timingData.data.summary?.avgOperatorTime ?? null,
           avgInspectionTime: timingData.data.summary?.avgInspectionTime ?? null,
           totalCycleTime: timingData.data.summary?.totalCycleTime ?? null,
         });
@@ -236,26 +236,30 @@ export default function AdminDashboardPage() {
       key: "partNumber",
       header: "Part No.",
       className: "font-bold",
-      render: (item: any) => item.part?.partNumber || "-",
+      render: (item: any) => item.partNumber || "-",
     },
     {
-      key: "result",
+      key: "operatorResult",
       header: "Status",
-      render: (item: any) => (
-        <Badge variant={item.result === "ACCEPTED" ? "success" : "danger"}>
-          {item.result}
-        </Badge>
-      ),
+      render: (item: any) => {
+        const result = item.operatorResult;
+        if (!result) return <span className="text-gray-400">—</span>;
+        return (
+          <Badge variant={result === "ACCEPTED" ? "success" : "danger"}>
+            {result}
+          </Badge>
+        );
+      },
     },
     {
-      key: "machineType",
+      key: "machine",
       header: "Machine",
       render: (item: any) => item.machine?.name || item.machine?.type || "-",
     },
     {
-      key: "inspector",
+      key: "operator",
       header: "Operator",
-      render: (item: any) => item.inspector?.name || "-",
+      render: (item: any) => item.operator?.name || "-",
     },
     {
       key: "qaDecision",

@@ -296,6 +296,7 @@ export default function InspectorDashboardPage() {
         body: JSON.stringify({
           qaDecision,
           qaJustification: justification || `Confirmed at ${new Date().toISOString()}`,
+          inspectionStartedAt: reviewStartedAt?.toISOString(),
         }),
       });
 
@@ -304,6 +305,7 @@ export default function InspectorDashboardPage() {
         setJustification("");
         setReviewStartedAt(null);
         fetchData();
+        fetchSession(); // refresh itemsCompleted counter in session header
       }
     } catch (error) {
       console.error("Error submitting QA review:", error);

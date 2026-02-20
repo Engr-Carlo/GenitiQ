@@ -1,45 +1,40 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, Button, Badge, DataTable, Modal, KPICard, ConfirmDialog } from "@/components/ui";
+import { Card, Button, Badge, DataTable, KPICard, LoadingSpinner } from "@/components/ui";
 import {
-  ArrowLeft, Plus, RotateCcw, Settings2,
+  ArrowLeft, RotateCcw,
   Layers3, Timer, BarChart3,
-  Cpu, Scan, Zap, Move, GripVertical, ChevronUp, ChevronDown,
+  Cpu, Scan, Move, GripVertical,
 } from "lucide-react";
 
 // ============================================================
-// Mock Data
+// Types
 // ============================================================
 
-const machinesMock: Record<string, Array<{
+interface MachineInfo {
   id: string;
   name: string;
-  status: "ACTIVE" | "IDLE" | "MAINTENANCE" | "SHUTDOWN";
-  currentPart: string | null;
+  type: string;
+  status: string;
   queueLength: number;
-  avgCycleTime: string;
-  utilization: string;
-}>> = {
-  vmm: [
-    { id: "vmm-1", name: "VMM-1", status: "ACTIVE", currentPart: "PN1001", queueLength: 5, avgCycleTime: "12 min", utilization: "87%" },
-    { id: "vmm-2", name: "VMM-2", status: "ACTIVE", currentPart: "PN1003", queueLength: 3, avgCycleTime: "15 min", utilization: "72%" },
-    { id: "vmm-3", name: "VMM-3", status: "IDLE", currentPart: null, queueLength: 0, avgCycleTime: "—", utilization: "0%" },
-  ],
-  cmm: [
-    { id: "cmm-1", name: "CMM-1", status: "ACTIVE", currentPart: "PN2001", queueLength: 4, avgCycleTime: "22 min", utilization: "78%" },
-    { id: "cmm-2", name: "CMM-2", status: "ACTIVE", currentPart: "PN2005", queueLength: 3, avgCycleTime: "25 min", utilization: "82%" },
-  ],
-};
+  currentOperator: { id: string; name: string } | null;
+  hasActiveSession: boolean;
+}
 
-const queueItemsMock = [
-  { id: "q1", position: 1, partNumber: "PN1020", priority: "HIGH" as const, estimatedTime: "12 min", waitTime: "3 min", assignedBy: "GA Algorithm" },
-  { id: "q2", position: 2, partNumber: "PN1021", priority: "MEDIUM" as const, estimatedTime: "15 min", waitTime: "15 min", assignedBy: "GA Algorithm" },
-  { id: "q3", position: 3, partNumber: "PN1022", priority: "LOW" as const, estimatedTime: "10 min", waitTime: "27 min", assignedBy: "Manual" },
-  { id: "q4", position: 4, partNumber: "PN1023", priority: "HIGH" as const, estimatedTime: "18 min", waitTime: "37 min", assignedBy: "GA Algorithm" },
-  { id: "q5", position: 5, partNumber: "PN1024", priority: "MEDIUM" as const, estimatedTime: "14 min", waitTime: "55 min", assignedBy: "GA Algorithm" },
-];
+interface QueueItem {
+  id: string;
+  partNumber: string;
+  barcode: string;
+  estimatedTime: number;
+  deadline: string;
+  quantity: number;
+  position: number;
+  priority: string;
+  machine: { id: string; name: string; type: string } | null;
+  inspector: { id: string; name: string } | null;
+}
 
 const statusColors: Record<string, string> = {
   ACTIVE: "bg-success-500",
@@ -63,25 +58,70 @@ export default function QueueMachineListPage() {
   const router = useRouter();
   const machineType = (params.machineType as string)?.toUpperCase();
   const machineTypeKey = (params.machineType as string)?.toLowerCase();
-
-  const machines = machinesMock[machineTypeKey] || [];
   const isVMM = machineTypeKey === "vmm";
 
-  // Queue view for a selected machine
+  const [loading, setLoading] = useState(true);
+  const [machines, setMachines] = useState<MachineInfo[]>([]);
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
   const [selectedMachine, setSelectedMachine] = useState<string | null>(null);
-  const [addPartModal, setAddPartModal] = useState(false);
-  const [confirmOptimize, setConfirmOptimize] = useState(false);
+
+  useEffect(() => {
+    fetchMachines();
+  }, [machineType]);
+
+  useEffect(() => {
+    if (selectedMachine) {
+      fetchQueue(selectedMachine);
+    }
+  }, [selectedMachine]);
+
+  const fetchMachines = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/machines?type=${machineType}`);
+      const data = await res.json();
+      setMachines(data.data || []);
+    } catch (error) {
+      console.error("Error fetching machines:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchQueue = async (machineId: string) => {
+    try {
+      const res = await fetch(`/api/queue?machineId=${machineId}`);
+      const data = await res.json();
+      const items: QueueItem[] = (data.data || []).map((item: any, index: number) => ({
+        ...item,
+        position: item.position || index + 1,
+        priority: computePriority(item),
+      }));
+      setQueueItems(items);
+    } catch (error) {
+      console.error("Error fetching queue:", error);
+    }
+  };
+
+  const computePriority = (item: any): string => {
+    const hoursToDeadline = (new Date(item.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
+    const urgencyScore = Math.max(0, 100 - hoursToDeadline / 2);
+    const complexityScore = (item.estimatedTime / 60) * 50 + (item.quantity / 10) * 50;
+    const fitness = urgencyScore * 0.6 + complexityScore * 0.4;
+    if (fitness > 70 || hoursToDeadline < 24) return "HIGH";
+    if (fitness > 40 || hoursToDeadline < 72) return "MEDIUM";
+    return "LOW";
+  };
 
   const selectedMachineData = machines.find((m) => m.id === selectedMachine);
-
-  const activeMachines = machines.filter((m) => m.status === "ACTIVE").length;
-  const totalQueue = machines.reduce((sum, m) => sum + m.queueLength, 0);
+  const activeMachines = machines.filter((m) => m.status === "ACTIVE" || m.hasActiveSession).length;
+  const totalQueue = machines.reduce((sum, m) => sum + (m.queueLength || 0), 0);
 
   const queueColumns = [
     {
       key: "position",
       header: "#",
-      render: (item: (typeof queueItemsMock)[0]) => (
+      render: (item: QueueItem) => (
         <div className="flex items-center gap-1">
           <GripVertical size={14} className="text-gray-300" />
           <span className="font-black text-gray-700">{item.position}</span>
@@ -90,39 +130,56 @@ export default function QueueMachineListPage() {
     },
     { key: "partNumber", header: "Part No.", className: "font-bold" },
     {
+      key: "barcode",
+      header: "Barcode",
+      render: (item: QueueItem) => <span className="font-mono text-sm">{item.barcode}</span>,
+    },
+    {
       key: "priority",
       header: "Priority",
-      render: (item: (typeof queueItemsMock)[0]) => (
-        <Badge variant={priorityVariant[item.priority]}>{item.priority}</Badge>
-      ),
-    },
-    { key: "estimatedTime", header: "Est. Time" },
-    { key: "waitTime", header: "Wait Time" },
-    {
-      key: "assignedBy",
-      header: "Assigned By",
-      render: (item: (typeof queueItemsMock)[0]) => (
-        <span className={item.assignedBy === "GA Algorithm" ? "text-primary-600 font-bold" : "text-gray-500"}>
-          {item.assignedBy === "GA Algorithm" && <Zap size={12} className="inline mr-1" />}
-          {item.assignedBy}
-        </span>
+      render: (item: QueueItem) => (
+        <Badge variant={priorityVariant[item.priority] || "success"}>
+          {item.priority}
+        </Badge>
       ),
     },
     {
-      key: "actions",
-      header: "Actions",
-      render: (_item: (typeof queueItemsMock)[0]) => (
-        <div className="flex gap-1">
-          <button className="p-1 hover:bg-gray-100 rounded" title="Move Up">
-            <ChevronUp size={16} className="text-gray-400 hover:text-gray-700" />
-          </button>
-          <button className="p-1 hover:bg-gray-100 rounded" title="Move Down">
-            <ChevronDown size={16} className="text-gray-400 hover:text-gray-700" />
-          </button>
-        </div>
-      ),
+      key: "estimatedTime",
+      header: "Est. Time",
+      render: (item: QueueItem) => `${item.estimatedTime} min`,
+    },
+    {
+      key: "deadline",
+      header: "Deadline",
+      render: (item: QueueItem) => {
+        const d = new Date(item.deadline);
+        const hoursLeft = (d.getTime() - Date.now()) / (1000 * 60 * 60);
+        return (
+          <span className={hoursLeft < 24 ? "text-danger-600 font-bold" : ""}>
+            {d.toLocaleDateString()}
+          </span>
+        );
+      },
+    },
+    {
+      key: "quantity",
+      header: "Qty",
+      render: (item: QueueItem) => <span className="font-bold">{item.quantity}</span>,
+    },
+    {
+      key: "inspector",
+      header: "Assigned Inspector",
+      render: (item: QueueItem) => item.inspector?.name || <span className="text-gray-400">—</span>,
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -144,12 +201,12 @@ export default function QueueMachineListPage() {
               {machineType} Queue Management
             </h1>
             <p className="text-gray-500 text-sm">
-              {isVMM ? "Video Measuring Machine" : "Coordinate Measuring Machine"} — GA-Optimized Queue
+              {isVMM ? "Video Measuring Machine" : "Coordinate Measuring Machine"} — Queue Overview
             </p>
           </div>
         </div>
-        <Button variant="primary" icon={<RotateCcw size={16} />} onClick={() => setConfirmOptimize(true)}>
-          Re-Optimize Queue
+        <Button variant="primary" icon={<RotateCcw size={16} />} onClick={() => { fetchMachines(); if (selectedMachine) fetchQueue(selectedMachine); }}>
+          Refresh
         </Button>
       </div>
 
@@ -157,8 +214,8 @@ export default function QueueMachineListPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard title="Active Machines" value={`${activeMachines}/${machines.length}`} icon={<Cpu size={24} />} />
         <KPICard title="Total in Queue" value={String(totalQueue)} icon={<Layers3 size={24} />} />
-        <KPICard title="Avg. Cycle Time" value="14 min" icon={<Timer size={24} />} />
-        <KPICard title="Throughput" value="32/hr" icon={<BarChart3 size={24} />} variant="highlight" />
+        <KPICard title="Machines" value={String(machines.length)} icon={<Timer size={24} />} />
+        <KPICard title="Selected Queue" value={selectedMachine ? String(queueItems.length) : "—"} icon={<BarChart3 size={24} />} variant="highlight" />
       </div>
 
       {/* Two-column layout: Machines | Queue */}
@@ -166,6 +223,11 @@ export default function QueueMachineListPage() {
         {/* Machine Cards */}
         <div className="lg:col-span-4 space-y-3">
           <h2 className="text-sm font-black uppercase tracking-wider text-gray-500 mb-2">Machines</h2>
+          {machines.length === 0 && (
+            <Card className="text-center py-8">
+              <p className="text-gray-400 font-bold">No {machineType} machines found</p>
+            </Card>
+          )}
           {machines.map((machine) => (
             <div
               key={machine.id}
@@ -179,35 +241,35 @@ export default function QueueMachineListPage() {
               <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${statusColors[machine.status]}`} />
+                    <div className={`w-2.5 h-2.5 rounded-full ${statusColors[machine.status] || "bg-gray-400"}`} />
                     <span className="font-black text-lg">{machine.name}</span>
                   </div>
                   <Badge
                     variant={
-                      machine.status === "ACTIVE"
+                      machine.hasActiveSession
                         ? "success"
-                        : machine.status === "IDLE"
-                        ? "gray"
                         : machine.status === "MAINTENANCE"
                         ? "warning"
-                        : "danger"
+                        : machine.status === "SHUTDOWN"
+                        ? "danger"
+                        : "gray"
                     }
                   >
-                    {machine.status}
+                    {machine.hasActiveSession ? "IN USE" : machine.status}
                   </Badge>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-xs">
                   <div>
-                    <span className="text-gray-400 block">Current</span>
-                    <span className="font-bold">{machine.currentPart || "—"}</span>
+                    <span className="text-gray-400 block">Operator</span>
+                    <span className="font-bold">{machine.currentOperator?.name || "—"}</span>
                   </div>
                   <div>
                     <span className="text-gray-400 block">Queue</span>
                     <span className="font-bold">{machine.queueLength} parts</span>
                   </div>
                   <div>
-                    <span className="text-gray-400 block">Util.</span>
-                    <span className="font-bold">{machine.utilization}</span>
+                    <span className="text-gray-400 block">Status</span>
+                    <span className="font-bold">{machine.hasActiveSession ? "Active" : "Idle"}</span>
                   </div>
                 </div>
               </div>
@@ -221,28 +283,21 @@ export default function QueueMachineListPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-black uppercase tracking-wider text-gray-500">
-                  Queue for {selectedMachineData.name}
+                  Queue for {selectedMachineData.name} ({queueItems.length} parts)
                 </h2>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" icon={<Plus size={14} />} onClick={() => setAddPartModal(true)}>
-                    Add Part
-                  </Button>
-                  <Button variant="outline" size="sm" icon={<Settings2 size={14} />}>
-                    GA Settings
-                  </Button>
-                </div>
               </div>
 
-              <Card>
-                <div className="p-3 bg-gradient-to-r from-primary-50 to-white border-b border-primary-100">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Zap size={16} className="text-primary-600" />
-                    <span className="font-bold text-primary-700">GA-Optimized Order</span>
-                    <span className="text-gray-400 ml-auto text-xs">Last optimized: 2 min ago</span>
-                  </div>
-                </div>
-                <DataTable columns={queueColumns} data={queueItemsMock} />
-              </Card>
+              {queueItems.length > 0 ? (
+                <Card>
+                  <DataTable columns={queueColumns} data={queueItems} />
+                </Card>
+              ) : (
+                <Card className="text-center py-12">
+                  <Layers3 size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-400 font-bold">No parts in queue for {selectedMachineData.name}</p>
+                  <p className="text-gray-300 text-sm mt-1">All parts have been processed or none are assigned</p>
+                </Card>
+              )}
             </div>
           ) : (
             <div className="flex items-center justify-center h-80">
@@ -251,49 +306,12 @@ export default function QueueMachineListPage() {
                   <Move size={28} className="text-gray-300" />
                 </div>
                 <p className="text-gray-400 font-bold">Select a machine to view its queue</p>
-                <p className="text-gray-300 text-sm mt-1">Click on an active machine card on the left</p>
+                <p className="text-gray-300 text-sm mt-1">Click on a machine card on the left</p>
               </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Add Part Modal */}
-      <Modal isOpen={addPartModal} onClose={() => setAddPartModal(false)} title="Add Part to Queue">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Part Number</label>
-            <input className="input-field" placeholder="Enter part number..." />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Priority</label>
-            <select className="input-field">
-              <option>LOW</option>
-              <option>MEDIUM</option>
-              <option selected>HIGH</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1.5">Notes (optional)</label>
-            <textarea className="input-field min-h-[80px] resize-none" placeholder="Any special instructions..." />
-          </div>
-          <div className="flex gap-3 justify-end pt-2">
-            <Button variant="ghost" onClick={() => setAddPartModal(false)}>Cancel</Button>
-            <Button variant="primary" icon={<Plus size={16} />}>Add to Queue</Button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Confirm Re-optimize */}
-      <ConfirmDialog
-        isOpen={confirmOptimize}
-        onClose={() => setConfirmOptimize(false)}
-        onConfirm={() => setConfirmOptimize(false)}
-        title="Re-Optimize Queue?"
-        message="This will run the Genetic Algorithm to recalculate optimal queue ordering across all active machines. Current manual overrides will be preserved."
-        confirmText="Run GA Optimizer"
-        variant="primary"
-      />
     </div>
   );
 }
