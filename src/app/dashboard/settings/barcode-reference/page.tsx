@@ -13,6 +13,7 @@ interface BarcodeReference {
   estimatedTime: number;
   deadline: string;
   quantity: number;
+  productionMachine?: string | null;
   machine?: { 
     id: string; 
     name: string; 
@@ -149,6 +150,25 @@ export default function BarcodeReferencePage() {
       render: (item: BarcodeReference) => (
         <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{item.barcode}</span>
       ),
+    },
+    {
+      key: "productionMachine",
+      header: "Prod. Machine",
+      render: (item: BarcodeReference) => {
+        const brand = item.productionMachine;
+        if (!brand) return <span className="text-gray-400 text-sm italic">Unknown</span>;
+        const colors: Record<string, string> = {
+          Micron: "bg-blue-100 text-blue-800",
+          Brother: "bg-green-100 text-green-800",
+          Okuma: "bg-orange-100 text-orange-800",
+        };
+        const cls = colors[brand] ?? "bg-gray-100 text-gray-700";
+        return (
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${cls}`}>
+            {brand}
+          </span>
+        );
+      },
     },
     {
       key: "machine",
@@ -316,12 +336,14 @@ export default function BarcodeReferencePage() {
           <div className="bg-gray-50 p-4 rounded-lg text-sm">
             <p className="font-bold mb-2">CSV Format Requirements:</p>
             <ul className="list-disc list-inside space-y-1 text-gray-700">
-              <li>Headers: <code className="bg-white px-1">partNumber,barcode,estimatedTime,deadline,quantity</code></li>
+              <li>Headers: <code className="bg-white px-1">partNumber,barcode,estimatedTime,deadline,quantity,machine,productionMachine</code></li>
               <li>partNumber: Part number (e.g., PN10001)</li>
               <li>barcode: Unique barcode identifier (e.g., BC-10001-A001)</li>
               <li>estimatedTime: Estimated inspection time in minutes (e.g., 4)</li>
               <li>deadline: ISO date format (e.g., 2026-02-25)</li>
               <li>quantity: Quantity for this barcode (e.g., 1)</li>
+              <li>machine: Testing machine name (e.g., VMM-1) — optional</li>
+              <li>productionMachine: Brand of production machine that made the part — <strong>Micron</strong>, <strong>Brother</strong>, or <strong>Okuma</strong> (optional, affects GA priority)</li>
             </ul>
           </div>
         </div>

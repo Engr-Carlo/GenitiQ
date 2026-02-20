@@ -120,9 +120,10 @@ model PartReference {
   barcode       String  @unique
   estimatedTime Int
   deadline      DateTime
-  quantity      Int     @default(1)
-  position      Int     @default(0)
-  priority      String?
+  quantity              Int     @default(1)
+  productionMachine     String? // "Micron" | "Brother" | "Okuma" | null
+  position              Int     @default(0)
+  priority              String?
 
   machineId   String?
   machine     Machine? @relation("MachinePartReferences", fields: [machineId], references: [id])

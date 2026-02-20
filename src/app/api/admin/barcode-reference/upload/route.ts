@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
     // Parse CSV
     const header = lines[0].split(",").map((h) => h.trim());
     const requiredHeaders = ["partNumber", "barcode", "estimatedTime", "deadline", "quantity"];
-    const optionalHeaders = ["machine"];
+    const optionalHeaders = ["machine", "productionMachine"];
+
+    const VALID_PRODUCTION_MACHINES = ["Micron", "Brother", "Okuma"];
 
     const missingHeaders = requiredHeaders.filter((h) => !header.includes(h));
     if (missingHeaders.length > 0) {
@@ -100,6 +102,18 @@ export async function POST(req: NextRequest) {
         machineId = machine.id;
       }
 
+      // Parse productionMachine — optional, free text with known-brand validation
+      let productionMachine: string | undefined;
+      if (rowData.productionMachine && rowData.productionMachine.trim()) {
+        // Normalise capitalisation: "micron" -> "Micron"
+        const input = rowData.productionMachine.trim();
+        const matched = VALID_PRODUCTION_MACHINES.find(
+          (b) => b.toLowerCase() === input.toLowerCase()
+        );
+        // Accept known brands (normalised) or unknown brands as-is (fallback speed 0.50)
+        productionMachine = matched ?? input;
+      }
+
       data.push({
         partNumber: rowData.partNumber,
         barcode: rowData.barcode,
@@ -107,6 +121,7 @@ export async function POST(req: NextRequest) {
         deadline,
         quantity,
         machineId,
+        productionMachine,
       });
     }
 
@@ -135,6 +150,7 @@ export async function POST(req: NextRequest) {
             deadline: item.deadline,
             quantity: item.quantity,
             machineId: item.machineId ?? null,
+            productionMachine: item.productionMachine ?? null,
             uploadedById: session.user.id,
           } as any,
           create: {
@@ -144,6 +160,7 @@ export async function POST(req: NextRequest) {
             deadline: item.deadline,
             quantity: item.quantity,
             machineId: item.machineId ?? null,
+            productionMachine: item.productionMachine ?? null,
             uploadedById: session.user.id,
           } as any,
         });

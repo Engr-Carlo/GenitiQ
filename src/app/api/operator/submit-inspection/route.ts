@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
+import { runGAOptimization } from "@/lib/ga/trigger";
 
 // POST /api/operator/submit-inspection — Operator submits accept/reject on PartReference
 export async function POST(req: NextRequest) {
@@ -80,6 +81,15 @@ export async function POST(req: NextRequest) {
         where: { id: machineSession.id },
         data: { itemsCompleted: { increment: 1 } },
       });
+    }
+
+    // Fire-and-forget GA re-optimisation so remaining PENDING parts re-rank immediately
+    // with updated priorities (deadline, quantity, production machine speed, estimated time)
+    const machineType = ref.machine?.type as "VMM" | "CMM" | undefined;
+    if (machineType) {
+      runGAOptimization(machineType).catch((e) =>
+        console.error("[GA] Re-optimisation failed after operator submit:", e)
+      );
     }
 
     await prisma.auditLog.create({

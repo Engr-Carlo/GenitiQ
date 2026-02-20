@@ -52,10 +52,10 @@ export async function GET(req: NextRequest) {
   // If download=template, return CSV template
   if (download === "template") {
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine",
-      "PN1001,1000001001,45,2026-12-31,1,VMM-1",
-      "PN1002,1000001002,30,2026-12-30,1,VMM-2",
-      "PN1003,1000001003,60,2027-01-15,1,CMM-1",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine,productionMachine",
+      "PN1001,1000001001,45,2026-12-31,1,VMM-1,Micron",
+      "PN1002,1000001002,30,2026-12-30,1,VMM-2,Brother",
+      "PN1003,1000001003,60,2027-01-15,1,CMM-1,Okuma",
     ].join("\n");
 
     return new NextResponse(csv, {
@@ -76,10 +76,11 @@ export async function GET(req: NextRequest) {
       r.quantity,
       r.machine?.name || "",
       r.inspector?.email || "",
+      r.productionMachine || "",
     ].join(","));
 
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector,productionMachine",
       ...rows,
     ].join("\n");
 
