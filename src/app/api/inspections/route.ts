@@ -15,9 +15,26 @@ export async function GET(req: NextRequest) {
   const needsReview = searchParams.get("needsReview") === "true";
 
   const where: any = { status: { not: "PENDING" } };
-  if (machineId) where.machineId = machineId;
   if (operatorResult) where.operatorResult = operatorResult;
-  if (needsReview) where.status = "OPERATOR_DONE";
+  if (needsReview) {
+    where.status = "OPERATOR_DONE";
+    // Inspectors scoped to their checked-in machine
+    if (session.user.role === "INSPECTOR") {
+      const inspectorSession = await prisma.machineSession.findFirst({
+        where: { operatorId: session.user.id, status: "ACTIVE" },
+      });
+      // Also check if inspector is directly assigned to a machine
+      const assignedMachine = await prisma.machine.findFirst({
+        where: { assignedInspectorId: session.user.id },
+      });
+      const restrictMachineId = inspectorSession?.machineId ?? assignedMachine?.id ?? machineId ?? null;
+      if (restrictMachineId) where.machineId = restrictMachineId;
+    } else if (machineId) {
+      where.machineId = machineId;
+    }
+  } else if (machineId) {
+    where.machineId = machineId;
+  }
 
   const [parts, total] = await Promise.all([
     prisma.partReference.findMany({

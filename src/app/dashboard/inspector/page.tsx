@@ -421,6 +421,18 @@ export default function InspectorDashboardPage() {
     { key: "partNumber", header: "Part No.", className: "font-bold" },
     { key: "operatorName", header: "Operator" },
     {
+      key: "machineName",
+      header: "Machine",
+      render: (item: InspectionForReview) => (
+        <div className="flex flex-col">
+          <span className="font-bold text-sm">{item.machineName}</span>
+          <Badge variant={item.machineType === "VMM" ? "info" : "warning"} className="mt-0.5 w-fit">
+            {item.machineType}
+          </Badge>
+        </div>
+      ),
+    },
+    {
       key: "operatorResult",
       header: "Op. Result",
       render: (item: InspectionForReview) => (
@@ -868,14 +880,25 @@ export default function InspectorDashboardPage() {
           </div>
 
           <div>
-            <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-3 flex items-center gap-2">
+            <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 mb-1 flex items-center gap-2">
               <Package size={22} className="text-warning-500" />
               Items Awaiting QA Review
             </h2>
+            {activeSession ? (
+              <p className="text-sm text-primary-700 font-semibold mb-3 flex items-center gap-1.5">
+                <Cpu size={14} />
+                Showing parts for <strong>{activeSession.machine.name}</strong> only — check into a different machine to see its queue.
+              </p>
+            ) : (
+              <p className="text-sm text-warning-600 font-medium mb-3 flex items-center gap-1.5">
+                <AlertTriangle size={14} />
+                Not checked into a machine — showing all pending parts. Check in to see only your machine&apos;s queue.
+              </p>
+            )}
             <DataTable
               columns={reviewColumns}
               data={reviewItems}
-              emptyMessage="No items pending review — all caught up!"
+              emptyMessage={activeSession ? `No items pending review for ${activeSession.machine.name}.` : "No items pending review — all caught up!"}
             />
           </div>
         </>

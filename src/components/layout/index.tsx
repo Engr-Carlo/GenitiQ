@@ -246,9 +246,17 @@ export function Header({ user, onMenuToggle }: HeaderProps) {
                     {roleLabel}
                   </span>
                 </div>
+                <Link
+                  href="/dashboard/profile"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 font-medium mt-1"
+                  onClick={() => setShowDropdown(false)}
+                >
+                  <User size={16} />
+                  Edit Profile
+                </Link>
                 <button
                   onClick={() => signOut({ callbackUrl: "/login" })}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger-600 hover:bg-danger-50 font-medium mt-1"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger-600 hover:bg-danger-50 font-medium"
                 >
                   <LogOut size={16} />
                   Sign Out
