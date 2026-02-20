@@ -41,19 +41,12 @@ export async function POST(req: NextRequest) {
       where: { operatorId: session.user.id, status: "ACTIVE" },
     });
 
-    // Machine restriction: part must be scanned on its designated machine
-    if (ref.machineId && machineSession) {
-      if (ref.machineId !== machineSession.machineId) {
-        const partMachineName = ref.machine?.name || ref.machineId;
-        return NextResponse.json(
-          { error: `This part is assigned to ${partMachineName}. You are checked into a different machine. Please use the correct machine.` },
-          { status: 400 }
-        );
-      }
-    } else if (ref.machineId && !machineSession) {
+    // Machine restriction: only enforce matching when operator has an active session
+    // (no session = allow submission without session tracking)
+    if (ref.machineId && machineSession && ref.machineId !== machineSession.machineId) {
       const partMachineName = ref.machine?.name || ref.machineId;
       return NextResponse.json(
-        { error: `This part is assigned to ${partMachineName}. Please check into that machine first.` },
+        { error: `This part is assigned to ${partMachineName}. You are checked into a different machine.` },
         { status: 400 }
       );
     }

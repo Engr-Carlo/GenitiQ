@@ -519,6 +519,16 @@ export default function OperatorDashboardPage() {
               </Button>
             </div>
 
+            {/* Submission error */}
+            {error && (
+              <div className="mt-4 p-4 rounded-lg bg-danger-50 border border-danger-200 text-danger-900">
+                <p className="font-bold flex items-center gap-2">
+                  <AlertTriangle size={16} />
+                  {error}
+                </p>
+              </div>
+            )}
+
             {/* Info Message */}
             <div className="mt-4 p-4 bg-info-100 border border-info-300 rounded-lg text-center">
               <p className="text-info-900 font-bold text-sm">
