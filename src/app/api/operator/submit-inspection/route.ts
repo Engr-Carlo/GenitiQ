@@ -41,8 +41,7 @@ export async function POST(req: NextRequest) {
       where: { operatorId: session.user.id, status: "ACTIVE" },
     });
 
-    // Machine restriction: only enforce matching when operator has an active session
-    // (no session = allow submission without session tracking)
+    // Machine restriction: only enforce when operator has an active session on a different machine
     if (ref.machineId && machineSession && ref.machineId !== machineSession.machineId) {
       const partMachineName = ref.machine?.name || ref.machineId;
       return NextResponse.json(
