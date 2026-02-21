@@ -195,6 +195,7 @@ export default function OperatorDashboardPage() {
   const [notes, setNotes]               = useState("");
   const [priority, setPriority]         = useState<"HIGH" | "MEDIUM" | "LOW" | null>(null);
   const [gaState, setGaState]           = useState<GAState | null>(null);
+  const [gaDialogOpen, setGaDialogOpen] = useState(false);
   const gaTimerRef                      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualInputRef                  = useRef<HTMLInputElement>(null);
 
@@ -215,6 +216,7 @@ export default function OperatorDashboardPage() {
     const best0  = pop.reduce((b, c) => c.fitness > b.fitness ? c : b);
     const avg0   = Math.round(pop.reduce((s, c) => s + c.fitness, 0) / pop.length);
 
+    setGaDialogOpen(true);
     setGaState({
       generation: 0, bestFitness: best0.fitness, avgFitness: avg0,
       bestGenes: best0.genes, fitnessHistory: [best0.fitness], avgHistory: [avg0],
@@ -258,11 +260,12 @@ export default function OperatorDashboardPage() {
 
       if (isLast) {
         setPriority(priorityFromFitness(weightedFitness(target), hoursToDeadline));
+        gaTimerRef.current = setTimeout(() => setGaDialogOpen(false), 2500);
       } else {
-        gaTimerRef.current = setTimeout(tick, 90);
+        gaTimerRef.current = setTimeout(tick, 300);
       }
     };
-    gaTimerRef.current = setTimeout(tick, 120);
+    gaTimerRef.current = setTimeout(tick, 400);
   }, []);
 
   if (session?.user?.role !== "OPERATOR") redirect("/dashboard");
@@ -330,91 +333,119 @@ export default function OperatorDashboardPage() {
     finally { setSubmitting(false); }
   };
 
-  // â”€â”€ GA panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const renderGAPanel = () => {
-    if (!gaState) return null;
+  // GA modal dialog
+  const renderGADialog = () => {
+    if (!gaState || !gaDialogOpen) return null;
     const { generation, bestFitness, avgFitness, bestGenes, fitnessHistory, avgHistory,
             totalMutations, totalCrossovers, lastMutated, converged, target, hoursToDeadline } = gaState;
-    const progress  = Math.round((generation / GENERATIONS) * 100);
-    const wFitness  = weightedFitness(bestGenes);
+    const progress = Math.round((generation / GENERATIONS) * 100);
+    const wFitness = weightedFitness(bestGenes);
     return (
-      <div className="mb-6 bg-gray-950 rounded-xl border border-gray-700 overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-700">
-          <div className="flex items-center gap-2">
-            <Dna size={14} className="text-primary-400" />
-            <span className="text-primary-300 font-black uppercase tracking-widest text-xs">Genetic Algorithm Â· Priority Engine</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {!converged
-              ? <span className="flex items-center gap-1.5 text-yellow-400 text-xs font-mono animate-pulse"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping inline-block" />Evolvingâ€¦</span>
-              : <span className="text-success-400 text-xs font-black">âœ“ CONVERGED</span>}
-            <span className="text-gray-400 font-mono text-xs">Gen <span className="text-white font-black">{generation}</span>/{GENERATIONS}</span>
-          </div>
-        </div>
-        {/* Progress */}
-        <div className="h-1 bg-gray-800">
-          <div className="h-1 bg-gradient-to-r from-primary-500 to-success-400 transition-all duration-200" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="p-4 font-mono text-xs space-y-4">
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { label: "Population",  val: POP_SIZE,       icon: <Dna size={10} />,     flash: false },
-              { label: "Mutations",   val: totalMutations,  icon: <Shuffle size={10} />, flash: lastMutated },
-              { label: "Crossovers",  val: totalCrossovers, icon: <GitMerge size={10} />,flash: false },
-              { label: "Mut. Rate",   val: `${(MUTATION_RATE*100).toFixed(0)}%`, icon: <Zap size={10} />, flash: false },
-            ].map((s) => (
-              <div key={s.label} className={`bg-gray-900 rounded-lg p-2 border transition-colors duration-200 ${ s.flash ? "border-yellow-500 bg-yellow-950" : "border-gray-700" }`}>
-                <div className="flex items-center gap-1 text-gray-500 mb-1">{s.icon} {s.label}</div>
-                <div className="text-white font-black text-sm">{s.val}</div>
-              </div>
-            ))}
-          </div>
-          {/* Sparklines */}
-          <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-            <div className="flex items-center gap-2 mb-2 text-gray-400"><BarChart2 size={11} /><span className="uppercase tracking-wider">Fitness Evolution</span></div>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-3">
-                <span className="text-success-400 w-12 text-right font-bold">{bestFitness}</span>
-                <SparkLine values={fitnessHistory} fillClass="fill-green-500" />
-                <span className="text-gray-500">best</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-blue-400 w-12 text-right font-bold">{avgFitness}</span>
-                <SparkLine values={avgHistory} fillClass="fill-blue-600" />
-                <span className="text-gray-500">avg</span>
-              </div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm">
+        <div className="w-full max-w-2xl mx-4 bg-gray-950 rounded-2xl border border-gray-700 overflow-hidden shadow-2xl">
+          {/* Dialog header */}
+          <div className="flex items-center justify-between px-5 py-4 bg-gray-900 border-b border-gray-700">
+            <div className="flex items-center gap-2">
+              <Dna size={16} className="text-primary-400" style={!converged ? { animation: "spin 2s linear infinite" } : {}} />
+              <span className="text-primary-300 font-black uppercase tracking-widest text-sm">Genetic Algorithm - Priority Engine</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {!converged
+                ? <span className="flex items-center gap-1.5 text-yellow-400 text-xs font-mono animate-pulse"><span className="w-2 h-2 rounded-full bg-yellow-400 animate-ping inline-block" /> Evolving...</span>
+                : <span className="text-green-400 text-xs font-black">&#x2713; CONVERGED</span>}
+              <span className="text-gray-400 font-mono text-xs">Gen <span className="text-white font-black">{generation}</span>/{GENERATIONS}</span>
+              {converged && (
+                <button onClick={() => setGaDialogOpen(false)} className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded border border-gray-600 hover:border-gray-400 transition-colors">
+                  Close
+                </button>
+              )}
             </div>
           </div>
-          {/* Gene bars */}
-          <div className="bg-gray-900 rounded-lg p-3 border border-gray-700 space-y-3">
-            <div className="flex items-center gap-2 text-gray-400 mb-1"><Target size={11} /><span className="uppercase tracking-wider">Best Chromosome Genes</span><span className="ml-auto text-gray-600">gene / target</span></div>
-            <GeneBar label="Deadline Urgency"    icon={<Timer size={10}/>}   geneValue={bestGenes[0]} targetValue={target[0]} weight="Ã—0.40" color="bg-red-500"    description={`${Math.round(hoursToDeadline)}h to deadline â†’ urgency ${target[0]}/100`} />
-            <GeneBar label="Prod. Machine Speed" icon={<Cpu size={10}/>}     geneValue={bestGenes[1]} targetValue={target[1]} weight="Ã—0.25" color="bg-blue-500"   description={`${scannedReference?.productionMachine ?? "Unknown"} Â· factor ${(target[1]/100).toFixed(2)} â†’ score ${target[1]}/100`} />
-            <GeneBar label="Order Quantity"      icon={<Hash size={10}/>}    geneValue={bestGenes[2]} targetValue={target[2]} weight="Ã—0.20" color="bg-yellow-500" description={`qty ${scannedReference?.quantity} Ã· 50 â†’ score ${target[2]}/100`} />
-            <GeneBar label="Inspection Time"     icon={<Clock size={10}/>}   geneValue={bestGenes[3]} targetValue={target[3]} weight="Ã—0.15" color="bg-purple-500" description={`${scannedReference?.estimatedTime}min Ã· 120 â†’ score ${target[3]}/100`} />
+          {/* Progress bar */}
+          <div className="h-1.5 bg-gray-800">
+            <div className="h-1.5 bg-gradient-to-r from-primary-500 to-green-400 transition-all duration-300" style={{ width: `${progress}%` }} />
           </div>
-          {/* Formula */}
-          <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
-              <span className="text-gray-400">fitness =</span>
-              <span className="text-red-400 font-bold">{Math.round(bestGenes[0])}Ã—0.40</span>
-              <span className="text-gray-600">+</span>
-              <span className="text-blue-400 font-bold">{Math.round(bestGenes[1])}Ã—0.25</span>
-              <span className="text-gray-600">+</span>
-              <span className="text-yellow-400 font-bold">{Math.round(bestGenes[2])}Ã—0.20</span>
-              <span className="text-gray-600">+</span>
-              <span className="text-purple-400 font-bold">{Math.round(bestGenes[3])}Ã—0.15</span>
-              <span className="text-gray-400">=</span>
-              <span className={`font-black text-base transition-colors duration-300 ${converged ? "text-white" : "text-yellow-300"}`}>{wFitness}</span>
-              <span className="text-gray-600">/ 100</span>
+          <div className="p-5 font-mono text-xs space-y-4 max-h-[75vh] overflow-y-auto">
+            {/* Stats grid */}
+            <div className="grid grid-cols-4 gap-2">
+              {[
+                { label: "Population",  val: POP_SIZE,        icon: <Dna size={11} />,      flash: false },
+                { label: "Mutations",   val: totalMutations,   icon: <Shuffle size={11} />,  flash: lastMutated },
+                { label: "Crossovers",  val: totalCrossovers,  icon: <GitMerge size={11} />, flash: false },
+                { label: "Mut. Rate",   val: `${(MUTATION_RATE * 100).toFixed(0)}%`, icon: <Zap size={11} />, flash: false },
+              ].map((s) => (
+                <div key={s.label} className={`rounded-xl p-3 border transition-colors duration-200 ${s.flash ? "border-yellow-500 bg-yellow-950" : "bg-gray-900 border-gray-700"}`}>
+                  <div className="flex items-center gap-1 text-gray-500 mb-1">{s.icon} {s.label}</div>
+                  <div className="text-white font-black text-base">{s.val}</div>
+                </div>
+              ))}
             </div>
-            <p className="text-gray-600 mt-1.5 text-xs">
-              &gt;70 or &lt;24h â†’ <span className="text-red-400">HIGH</span>
-              &nbsp;Â·&nbsp; &gt;45 or &lt;72h â†’ <span className="text-yellow-400">MEDIUM</span>
-              &nbsp;Â·&nbsp; else â†’ <span className="text-blue-400">LOW</span>
-            </p>
+            {/* Fitness evolution sparklines */}
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+              <div className="flex items-center gap-2 mb-3 text-gray-400"><BarChart2 size={12} /><span className="uppercase tracking-wider text-xs">Fitness Evolution</span></div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-green-400 w-10 text-right font-bold text-sm">{bestFitness}</span>
+                  <SparkLine values={fitnessHistory} fillClass="fill-green-500" />
+                  <span className="text-gray-500">best fitness</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-blue-400 w-10 text-right font-bold text-sm">{avgFitness}</span>
+                  <SparkLine values={avgHistory} fillClass="fill-blue-600" />
+                  <span className="text-gray-500">avg fitness</span>
+                </div>
+              </div>
+            </div>
+            {/* Gene bars */}
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-700 space-y-3">
+              <div className="flex items-center gap-2 text-gray-400 mb-1">
+                <Target size={12} />
+                <span className="uppercase tracking-wider text-xs">Best Chromosome Genes</span>
+                <span className="ml-auto text-gray-600 text-xs">gene / target</span>
+              </div>
+              <GeneBar label="Deadline Urgency"    icon={<Timer size={10}/>}  geneValue={bestGenes[0]} targetValue={target[0]} weight="x0.40" color="bg-red-500"    description={`${Math.round(hoursToDeadline)}h to deadline -> urgency ${target[0]}/100`} />
+              <GeneBar label="Prod. Machine Speed" icon={<Cpu size={10}/>}    geneValue={bestGenes[1]} targetValue={target[1]} weight="x0.25" color="bg-blue-500"   description={`${scannedReference?.productionMachine ?? "Unknown"} | factor ${(target[1]/100).toFixed(2)} -> score ${target[1]}/100`} />
+              <GeneBar label="Order Quantity"      icon={<Hash size={10}/>}   geneValue={bestGenes[2]} targetValue={target[2]} weight="x0.20" color="bg-yellow-500" description={`qty ${scannedReference?.quantity} / 50 -> score ${target[2]}/100`} />
+              <GeneBar label="Inspection Time"     icon={<Clock size={10}/>}  geneValue={bestGenes[3]} targetValue={target[3]} weight="x0.15" color="bg-purple-500" description={`${scannedReference?.estimatedTime}min / 120 -> score ${target[3]}/100`} />
+            </div>
+            {/* Weighted fitness formula */}
+            <div className="bg-gray-900 rounded-xl p-4 border border-gray-700">
+              <p className="text-gray-500 text-xs mb-2 uppercase tracking-wider">Weighted Fitness Formula</p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                <span className="text-gray-400">f =</span>
+                <span className="text-red-400 font-bold">{Math.round(bestGenes[0])} x 0.40</span>
+                <span className="text-gray-600">+</span>
+                <span className="text-blue-400 font-bold">{Math.round(bestGenes[1])} x 0.25</span>
+                <span className="text-gray-600">+</span>
+                <span className="text-yellow-400 font-bold">{Math.round(bestGenes[2])} x 0.20</span>
+                <span className="text-gray-600">+</span>
+                <span className="text-purple-400 font-bold">{Math.round(bestGenes[3])} x 0.15</span>
+                <span className="text-gray-400">=</span>
+                <span className={`font-black text-xl transition-colors duration-300 ${converged ? "text-white" : "text-yellow-300"}`}>{wFitness}</span>
+                <span className="text-gray-600">/ 100</span>
+              </div>
+              <div className="mt-2 text-xs text-gray-500 flex gap-4">
+                <span>&gt;70 or &lt;24h: <span className="text-red-400 font-bold">HIGH</span></span>
+                <span>&gt;45 or &lt;72h: <span className="text-yellow-400 font-bold">MEDIUM</span></span>
+                <span>else: <span className="text-blue-400 font-bold">LOW</span></span>
+              </div>
+            </div>
+            {/* Convergence verdict */}
+            {converged && gaState.priority && (
+              <div className={`rounded-xl p-5 border-2 text-center ${
+                gaState.priority === "HIGH" ? "border-red-500 bg-red-950"
+                : gaState.priority === "MEDIUM" ? "border-yellow-500 bg-yellow-950"
+                : "border-blue-500 bg-blue-950"
+              }`}>
+                <p className="text-gray-400 text-xs mb-1 uppercase tracking-widest">GA Verdict</p>
+                <p className={`font-black text-3xl ${
+                  gaState.priority === "HIGH" ? "text-red-400"
+                  : gaState.priority === "MEDIUM" ? "text-yellow-400"
+                  : "text-blue-400"
+                }`}>{gaState.priority} PRIORITY</p>
+                <p className="text-gray-500 text-xs mt-2">Closing automatically in 2.5s...</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -423,6 +454,8 @@ export default function OperatorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
+      {/* GA Modal Dialog */}
+      {renderGADialog()}
       <div className="max-w-4xl mx-auto px-4 space-y-6">
 
         {/* Header */}
@@ -554,29 +587,30 @@ export default function OperatorDashboardPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                {!gaState?.converged ? (
-                  <span className="flex items-center gap-2 text-yellow-600 text-sm font-semibold animate-pulse">
-                    <Dna size={15} style={{ animation: "spin 2s linear infinite" }} />
-                    GA runningâ€¦
-                  </span>
+                {gaState && !gaState.converged ? (
+                  <button onClick={() => setGaDialogOpen(true)} className="flex items-center gap-2 text-yellow-600 text-sm font-semibold animate-pulse bg-yellow-50 border border-yellow-300 rounded-lg px-3 py-1.5 hover:bg-yellow-100 transition-colors">
+                    <Dna size={14} style={{ animation: "spin 2s linear infinite" }} />
+                    GA Computing...
+                  </button>
                 ) : priority ? (
-                  <Badge
-                    variant={priority === "HIGH" ? "danger" : priority === "MEDIUM" ? "warning" : "info"}
-                    className="text-sm px-4 py-1.5 font-black"
-                  >
-                    <TrendingUp size={14} className="inline mr-1" />
-                    {priority} PRIORITY
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={priority === "HIGH" ? "danger" : priority === "MEDIUM" ? "warning" : "info"}
+                      className="text-sm px-4 py-1.5 font-black"
+                    >
+                      <TrendingUp size={14} className="inline mr-1" />
+                      {priority} PRIORITY
+                    </Badge>
+                    <button onClick={() => setGaDialogOpen(true)} className="text-xs text-gray-500 hover:text-primary-600 underline">
+                      View Analysis
+                    </button>
+                  </div>
                 ) : null}
                 <Button variant="outline" size="sm" onClick={handleClearScan} disabled={submitting}>
                   Cancel
                 </Button>
               </div>
             </div>
-
-            {/* â”€â”€ GA ANIMATION PANEL â”€â”€ */}
-            {renderGAPanel()}
-
             {/* Part Details Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div className="bg-white p-4 rounded-lg border border-gray-200">
