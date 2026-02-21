@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
-export const DEFAULT_THRESHOLDS = {
+const DEFAULT_THRESHOLDS = {
   highFitnessThreshold: 70,
   highHoursThreshold: 24,
   mediumFitnessThreshold: 45,
@@ -10,7 +10,7 @@ export const DEFAULT_THRESHOLDS = {
 };
 
 // GET /api/ga-config — readable by any authenticated user
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const session = await auth();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

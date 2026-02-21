@@ -23,7 +23,6 @@ const DEFAULTS: Thresholds = {
 // "Precision" = how strictly HIGH/MEDIUM are called; "Accuracy" = how well defaults match real-world data
 function computeMetrics(t: Thresholds) {
   const highRange  = 100 - t.highFitnessThreshold;
-  const medRange   = t.highFitnessThreshold - t.mediumFitnessThreshold;
   const lowRange   = t.mediumFitnessThreshold;
   const total      = 100;
   const precision  = Math.round(100 - (highRange / total) * 100);         // stricter threshold = higher precision
