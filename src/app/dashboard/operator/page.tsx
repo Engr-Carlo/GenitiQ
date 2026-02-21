@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 // ============================================================
-// Production machine speed factors — must match trigger.ts
+// Production machine speed factors â€” must match trigger.ts
 // ============================================================
 const PROD_SPEED: Record<string, number> = { Micron: 1.0, Brother: 0.66, Okuma: 0.33 };
 const WEIGHTS = [0.40, 0.25, 0.20, 0.15] as const;
@@ -40,7 +40,7 @@ interface GAState {
   hoursToDeadline: number;
 }
 
-// ── GA helpers ──────────────────────────────────────────────
+// â”€â”€ GA helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function trueScores(ref: BarcodeReference): Genes {
   const h = (new Date(ref.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
   return [
@@ -101,7 +101,7 @@ function priorityFromFitness(f: number, h: number): "HIGH" | "MEDIUM" | "LOW" {
   return "LOW";
 }
 
-// ── Gene bar sub-component ───────────────────────────────────
+// â”€â”€ Gene bar sub-component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function GeneBar({ label, icon, geneValue, targetValue, weight, color, description }: {
   label: string; icon: React.ReactNode; geneValue: number; targetValue: number;
   weight: string; color: string; description: string;
@@ -126,7 +126,7 @@ function GeneBar({ label, icon, geneValue, targetValue, weight, color, descripti
   );
 }
 
-// ── Sparkline sub-component ──────────────────────────────────
+// â”€â”€ Sparkline sub-component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function SparkLine({ values, fillClass }: { values: number[]; fillClass: string }) {
   const slice = values.slice(-30);
   const W = 5; const G = 2; const H = 22;
@@ -201,7 +201,7 @@ export default function OperatorDashboardPage() {
   // Clean up GA timer on unmount
   useEffect(() => { return () => { if (gaTimerRef.current) clearTimeout(gaTimerRef.current); }; }, []);
 
-  // Run the real Genetic Algorithm — animates 30 generations at 90ms each
+  // Run the real Genetic Algorithm â€” animates 30 generations at 90ms each
   const runGA = useCallback((ref: BarcodeReference) => {
     const target = trueScores(ref);
     const hoursToDeadline = (new Date(ref.deadline).getTime() - Date.now()) / (1000 * 60 * 60);
@@ -330,7 +330,7 @@ export default function OperatorDashboardPage() {
     finally { setSubmitting(false); }
   };
 
-  // ── GA panel ────────────────────────────────────────────────
+  // â”€â”€ GA panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const renderGAPanel = () => {
     if (!gaState) return null;
     const { generation, bestFitness, avgFitness, bestGenes, fitnessHistory, avgHistory,
@@ -343,12 +343,12 @@ export default function OperatorDashboardPage() {
         <div className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-700">
           <div className="flex items-center gap-2">
             <Dna size={14} className="text-primary-400" />
-            <span className="text-primary-300 font-black uppercase tracking-widest text-xs">Genetic Algorithm · Priority Engine</span>
+            <span className="text-primary-300 font-black uppercase tracking-widest text-xs">Genetic Algorithm Â· Priority Engine</span>
           </div>
           <div className="flex items-center gap-3">
             {!converged
-              ? <span className="flex items-center gap-1.5 text-yellow-400 text-xs font-mono animate-pulse"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping inline-block" />Evolving…</span>
-              : <span className="text-success-400 text-xs font-black">✓ CONVERGED</span>}
+              ? <span className="flex items-center gap-1.5 text-yellow-400 text-xs font-mono animate-pulse"><span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-ping inline-block" />Evolvingâ€¦</span>
+              : <span className="text-success-400 text-xs font-black">âœ“ CONVERGED</span>}
             <span className="text-gray-400 font-mono text-xs">Gen <span className="text-white font-black">{generation}</span>/{GENERATIONS}</span>
           </div>
         </div>
@@ -390,30 +390,30 @@ export default function OperatorDashboardPage() {
           {/* Gene bars */}
           <div className="bg-gray-900 rounded-lg p-3 border border-gray-700 space-y-3">
             <div className="flex items-center gap-2 text-gray-400 mb-1"><Target size={11} /><span className="uppercase tracking-wider">Best Chromosome Genes</span><span className="ml-auto text-gray-600">gene / target</span></div>
-            <GeneBar label="Deadline Urgency"    icon={<Timer size={10}/>}   geneValue={bestGenes[0]} targetValue={target[0]} weight="×0.40" color="bg-red-500"    description={`${Math.round(hoursToDeadline)}h to deadline → urgency ${target[0]}/100`} />
-            <GeneBar label="Prod. Machine Speed" icon={<Cpu size={10}/>}     geneValue={bestGenes[1]} targetValue={target[1]} weight="×0.25" color="bg-blue-500"   description={`${scannedReference?.productionMachine ?? "Unknown"} · factor ${(target[1]/100).toFixed(2)} → score ${target[1]}/100`} />
-            <GeneBar label="Order Quantity"      icon={<Hash size={10}/>}    geneValue={bestGenes[2]} targetValue={target[2]} weight="×0.20" color="bg-yellow-500" description={`qty ${scannedReference?.quantity} ÷ 50 → score ${target[2]}/100`} />
-            <GeneBar label="Inspection Time"     icon={<Clock size={10}/>}   geneValue={bestGenes[3]} targetValue={target[3]} weight="×0.15" color="bg-purple-500" description={`${scannedReference?.estimatedTime}min ÷ 120 → score ${target[3]}/100`} />
+            <GeneBar label="Deadline Urgency"    icon={<Timer size={10}/>}   geneValue={bestGenes[0]} targetValue={target[0]} weight="Ã—0.40" color="bg-red-500"    description={`${Math.round(hoursToDeadline)}h to deadline â†’ urgency ${target[0]}/100`} />
+            <GeneBar label="Prod. Machine Speed" icon={<Cpu size={10}/>}     geneValue={bestGenes[1]} targetValue={target[1]} weight="Ã—0.25" color="bg-blue-500"   description={`${scannedReference?.productionMachine ?? "Unknown"} Â· factor ${(target[1]/100).toFixed(2)} â†’ score ${target[1]}/100`} />
+            <GeneBar label="Order Quantity"      icon={<Hash size={10}/>}    geneValue={bestGenes[2]} targetValue={target[2]} weight="Ã—0.20" color="bg-yellow-500" description={`qty ${scannedReference?.quantity} Ã· 50 â†’ score ${target[2]}/100`} />
+            <GeneBar label="Inspection Time"     icon={<Clock size={10}/>}   geneValue={bestGenes[3]} targetValue={target[3]} weight="Ã—0.15" color="bg-purple-500" description={`${scannedReference?.estimatedTime}min Ã· 120 â†’ score ${target[3]}/100`} />
           </div>
           {/* Formula */}
           <div className="bg-gray-900 rounded-lg p-3 border border-gray-700">
             <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
               <span className="text-gray-400">fitness =</span>
-              <span className="text-red-400 font-bold">{Math.round(bestGenes[0])}×0.40</span>
+              <span className="text-red-400 font-bold">{Math.round(bestGenes[0])}Ã—0.40</span>
               <span className="text-gray-600">+</span>
-              <span className="text-blue-400 font-bold">{Math.round(bestGenes[1])}×0.25</span>
+              <span className="text-blue-400 font-bold">{Math.round(bestGenes[1])}Ã—0.25</span>
               <span className="text-gray-600">+</span>
-              <span className="text-yellow-400 font-bold">{Math.round(bestGenes[2])}×0.20</span>
+              <span className="text-yellow-400 font-bold">{Math.round(bestGenes[2])}Ã—0.20</span>
               <span className="text-gray-600">+</span>
-              <span className="text-purple-400 font-bold">{Math.round(bestGenes[3])}×0.15</span>
+              <span className="text-purple-400 font-bold">{Math.round(bestGenes[3])}Ã—0.15</span>
               <span className="text-gray-400">=</span>
               <span className={`font-black text-base transition-colors duration-300 ${converged ? "text-white" : "text-yellow-300"}`}>{wFitness}</span>
               <span className="text-gray-600">/ 100</span>
             </div>
             <p className="text-gray-600 mt-1.5 text-xs">
-              &gt;70 or &lt;24h → <span className="text-red-400">HIGH</span>
-              &nbsp;·&nbsp; &gt;45 or &lt;72h → <span className="text-yellow-400">MEDIUM</span>
-              &nbsp;·&nbsp; else → <span className="text-blue-400">LOW</span>
+              &gt;70 or &lt;24h â†’ <span className="text-red-400">HIGH</span>
+              &nbsp;Â·&nbsp; &gt;45 or &lt;72h â†’ <span className="text-yellow-400">MEDIUM</span>
+              &nbsp;Â·&nbsp; else â†’ <span className="text-blue-400">LOW</span>
             </p>
           </div>
         </div>
@@ -436,7 +436,7 @@ export default function OperatorDashboardPage() {
           <p className="text-gray-500 text-lg">Scan or enter barcode to view part details</p>
         </div>
 
-        {/* ── SUCCESS CARD ── */}
+        {/* â”€â”€ SUCCESS CARD â”€â”€ */}
         {successData ? (
           <Card className={`border-2 ${successData.result === "ACCEPTED" ? "border-success-300 bg-success-50/40" : "border-danger-300 bg-danger-50/40"}`}>
             <div className="flex items-center justify-between mb-6">
@@ -496,7 +496,7 @@ export default function OperatorDashboardPage() {
           </Card>
 
         ) : !scannedReference ? (
-          /* ── READY TO SCAN ── */
+          /* â”€â”€ READY TO SCAN â”€â”€ */
           <Card className="p-8 text-center border-2 border-dashed border-gray-300">
             <div className="max-w-md mx-auto space-y-6">
               <div className="h-32 w-32 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center mx-auto">
@@ -538,7 +538,7 @@ export default function OperatorDashboardPage() {
           </Card>
 
         ) : (
-          /* ── PART DETAILS + GA PANEL ── */
+          /* â”€â”€ PART DETAILS + GA PANEL â”€â”€ */
           <Card className="border-2 border-success-200 bg-success-50/30">
             {/* Card header */}
             <div className="flex items-center justify-between mb-6">
@@ -549,7 +549,7 @@ export default function OperatorDashboardPage() {
                 <div>
                   <h2 className="text-xl font-black text-gray-900">Barcode Verified</h2>
                   <p className="text-sm text-gray-500">
-                    Time In: {timeIn ? new Date(timeIn).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—"}
+                    Time In: {timeIn ? new Date(timeIn).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "â€”"}
                   </p>
                 </div>
               </div>
@@ -557,7 +557,7 @@ export default function OperatorDashboardPage() {
                 {!gaState?.converged ? (
                   <span className="flex items-center gap-2 text-yellow-600 text-sm font-semibold animate-pulse">
                     <Dna size={15} style={{ animation: "spin 2s linear infinite" }} />
-                    GA running…
+                    GA runningâ€¦
                   </span>
                 ) : priority ? (
                   <Badge
@@ -574,7 +574,7 @@ export default function OperatorDashboardPage() {
               </div>
             </div>
 
-            {/* ── GA ANIMATION PANEL ── */}
+            {/* â”€â”€ GA ANIMATION PANEL â”€â”€ */}
             {renderGAPanel()}
 
             {/* Part Details Grid */}
@@ -666,316 +666,6 @@ export default function OperatorDashboardPage() {
                   <div className="text-right">
                     {item.machineName && <Badge variant="info" className="mb-1">{item.machineName}</Badge>}
                     <p className="text-xs text-gray-500">{new Date(item.scannedAt).toLocaleString()}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-      </div>
-    </div>
-  );
-}
-
-        {/* Scan Area */}
-        {successData ? (
-          /* ── Success Card ── */
-          <Card className={`border-2 ${successData.result === "ACCEPTED" ? "border-success-300 bg-success-50/40" : "border-danger-300 bg-danger-50/40"}`}>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className={`h-14 w-14 rounded-2xl flex items-center justify-center text-white ${successData.result === "ACCEPTED" ? "bg-success-500" : "bg-danger-500"}`}>
-                  {successData.result === "ACCEPTED" ? <Check size={28} /> : <X size={28} />}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black text-gray-900">
-                    {successData.result === "ACCEPTED" ? "Part Accepted" : "Part Rejected"}
-                  </h2>
-                  <p className="text-sm text-gray-500">Sent to inspector for QA review</p>
-                </div>
-              </div>
-              <Badge variant={successData.result === "ACCEPTED" ? "success" : "danger"} className="text-base px-4 py-1">
-                {successData.result}
-              </Badge>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Package size={12} /> Part Number</p>
-                <p className="font-black text-gray-900">{successData.partNumber}</p>
-              </div>
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><ScanBarcode size={12} /> Barcode</p>
-                <p className="font-mono font-bold text-gray-900">{successData.barcode}</p>
-              </div>
-              {successData.machineName && (
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Cpu size={12} /> Machine</p>
-                  <p className="font-bold text-gray-900">{successData.machineName}</p>
-                </div>
-              )}
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Clock size={12} /> Time In</p>
-                <p className="font-bold text-gray-900">{successData.timeIn ? new Date(successData.timeIn).toLocaleTimeString() : "-"}</p>
-              </div>
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Clock size={12} /> Time Out</p>
-                <p className="font-bold text-gray-900">{successData.timeOut ? new Date(successData.timeOut).toLocaleTimeString() : "-"}</p>
-              </div>
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <p className="text-xs text-gray-500 mb-1 flex items-center gap-1"><TrendingUp size={12} /> Duration</p>
-                <p className="font-black text-gray-900">{successData.duration}</p>
-              </div>
-              {successData.inspectorName && (
-                <div className="bg-white p-4 rounded-lg border border-gray-200 col-span-2 md:col-span-3">
-                  <p className="text-xs text-gray-500 mb-1">Assigned Inspector</p>
-                  <p className="font-bold text-gray-900">{successData.inspectorName}</p>
-                </div>
-              )}
-            </div>
-
-            <Button
-              variant="primary"
-              size="lg"
-              className="w-full font-black uppercase"
-              icon={<ScanBarcode size={20} />}
-              onClick={handleClearScan}
-            >
-              Scan Next Part
-            </Button>
-          </Card>
-        ) : !scannedReference ? (
-          <Card className="p-8 text-center border-2 border-dashed border-gray-300">
-            <div className="max-w-md mx-auto space-y-6">
-              <div className="h-32 w-32 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center mx-auto">
-                <ScanBarcode size={64} className="text-primary-600" />
-              </div>
-
-              <div>
-                <h2 className="text-2xl font-black text-gray-900 mb-2">Ready to Scan</h2>
-                <p className="text-gray-500">
-                  Use a barcode scanner or enter manually below
-                </p>
-              </div>
-
-              {/* Manual Input */}
-              <form onSubmit={handleManualSubmit} className="space-y-4">
-                <Input
-                  ref={manualInputRef}
-                  placeholder="Enter barcode manually..."
-                  value={manualBarcode}
-                  onChange={(e) => setManualBarcode(e.target.value)}
-                  onFocus={() => setScanMode(true)}
-                  onBlur={() => setTimeout(() => setScanMode(false), 100)}
-                  icon={<ScanBarcode size={18} />}
-                  className="text-center text-lg font-mono"
-                />
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="lg"
-                  className="w-full font-black uppercase"
-                  loading={loading}
-                  disabled={loading || !manualBarcode.trim()}
-                >
-                  Lookup Barcode
-                </Button>
-              </form>
-
-              {/* Error Message */}
-              {error && (
-                <div className="p-4 rounded-lg bg-danger-50 border border-danger-200 text-danger-900">
-                  <p className="font-bold">{error}</p>
-                </div>
-              )}
-
-              {/* Scanned Code Display */}
-              {scannedCode && (
-                <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
-                  <p className="text-sm text-gray-600">Last scanned:</p>
-                  <p className="font-mono font-bold text-primary-700">{scannedCode}</p>
-                </div>
-              )}
-            </div>
-          </Card>
-        ) : (
-          // Barcode Details Display with Accept/Reject
-          <Card className="border-2 border-success-200 bg-success-50/30">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-success-500 text-white flex items-center justify-center">
-                  <CheckCircle2 size={24} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-gray-900">Barcode Verified</h2>
-                  <p className="text-sm text-gray-500">
-                    Time In: {timeIn ? new Date(timeIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                {priority && (
-                  <Badge
-                    variant={priority === "HIGH" ? "danger" : priority === "MEDIUM" ? "warning" : "info"}
-                    className="text-sm px-3 py-1"
-                  >
-                    <TrendingUp size={14} className="inline mr-1" />
-                    {priority} PRIORITY
-                  </Badge>
-                )}
-                <Button variant="outline" size="sm" onClick={handleClearScan} disabled={submitting}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-
-            {/* Part Details Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-                  <Package size={14} />
-                  <span>Part Number</span>
-                </div>
-                <p className="text-xl font-black text-gray-900">{scannedReference.partNumber}</p>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-                  <ScanBarcode size={14} />
-                  <span>Barcode</span>
-                </div>
-                <p className="text-lg font-mono font-bold text-gray-900">{scannedReference.barcode}</p>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-                  <Clock size={14} />
-                  <span>Estimated Time</span>
-                </div>
-                <p className="text-xl font-black text-gray-900">{scannedReference.estimatedTime} min</p>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-                  <Calendar size={14} />
-                  <span>Deadline</span>
-                </div>
-                <p className="text-lg font-bold text-gray-900">
-                  {new Date(scannedReference.deadline).toLocaleDateString()}
-                </p>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-                  <Hash size={14} />
-                  <span>Quantity</span>
-                </div>
-                <p className="text-xl font-black text-gray-900">{scannedReference.quantity}</p>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-                  <Cpu size={14} />
-                  <span>Machine</span>
-                </div>
-                {scannedReference.machine ? (
-                  <div>
-                    <p className="text-lg font-black text-gray-900">{scannedReference.machine.name}</p>
-                    <Badge variant={scannedReference.machine.type === "VMM" ? "info" : "warning"} className="mt-1">
-                      {scannedReference.machine.type}
-                    </Badge>
-                  </div>
-                ) : (
-                  <p className="text-gray-400 italic">Not assigned</p>
-                )}
-              </div>
-            </div>
-
-            {/* Inspector Info */}
-            {scannedReference.inspector && (
-              <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
-                <p className="text-sm text-gray-500 mb-1">Assigned Inspector</p>
-                <p className="font-bold text-gray-900">{scannedReference.inspector.name}</p>
-                <p className="text-sm text-gray-500">{scannedReference.inspector.email}</p>
-              </div>
-            )}
-
-            {/* Notes (Optional) */}
-            <div className="bg-white p-4 rounded-lg border border-gray-200 mb-6">
-              <label className="block text-sm font-bold text-gray-700 mb-2">
-                Notes (Optional)
-              </label>
-              <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
-                rows={3}
-                placeholder="Add any observations or notes..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                disabled={submitting}
-              />
-            </div>
-
-            {/* Accept/Reject Buttons */}
-            <div className="grid grid-cols-2 gap-4">
-              <Button
-                variant="danger"
-                size="lg"
-                icon={<X size={20} />}
-                onClick={() => handleSubmitInspection("REJECTED")}
-                loading={submitting}
-                disabled={submitting}
-                className="font-black uppercase"
-              >
-                Reject
-              </Button>
-              <Button
-                variant="success"
-                size="lg"
-                icon={<Check size={20} />}
-                onClick={() => handleSubmitInspection("ACCEPTED")}
-                loading={submitting}
-                disabled={submitting}
-                className="font-black uppercase"
-              >
-                Accept
-              </Button>
-            </div>
-
-            {/* Info Message */}
-            <div className="mt-4 p-4 bg-info-100 border border-info-300 rounded-lg text-center">
-              <p className="text-info-900 font-bold text-sm">
-                Choose Accept or Reject to complete the inspection
-              </p>
-              <p className="text-info-700 text-xs mt-1">
-                This part will be sent to the inspector for final review
-              </p>
-            </div>
-          </Card>
-        )}
-
-        {/* Scan History */}
-        {scannedHistory.length > 0 && (
-          <Card>
-            <div className="flex items-center gap-2 mb-4">
-              <History size={20} className="text-gray-600" />
-              <h3 className="text-lg font-black text-gray-900">Recent Scans</h3>
-            </div>
-            <div className="space-y-2">
-              {scannedHistory.map((item, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
-                >
-                  <div>
-                    <p className="font-bold text-gray-900">{item.partNumber}</p>
-                    <p className="text-sm font-mono text-gray-500">{item.barcode}</p>
-                  </div>
-                  <div className="text-right">
-                    {item.machineName && (
-                      <Badge variant="info" className="mb-1">{item.machineName}</Badge>
-                    )}
-                    <p className="text-xs text-gray-500">
-                      {new Date(item.scannedAt).toLocaleString()}
-                    </p>
                   </div>
                 </div>
               ))}
