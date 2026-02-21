@@ -312,7 +312,6 @@ export default function BarcodeReferencePage() {
                   {uploadResult.results && (
                     <div className="mt-2 text-sm">
                       <p>Created: {uploadResult.results.created}</p>
-                      <p>Updated: {uploadResult.results.updated}</p>
                       {uploadResult.results.errors?.length > 0 && (
                         <p className="text-danger-700">Errors: {uploadResult.results.errors.length}</p>
                       )}
@@ -345,6 +344,10 @@ export default function BarcodeReferencePage() {
               <li>machine: Testing machine name (e.g., VMM-1) — optional</li>
               <li>productionMachine: Brand of production machine that made the part — <strong>Micron</strong>, <strong>Brother</strong>, or <strong>Okuma</strong> (optional, affects GA priority)</li>
             </ul>
+            <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">
+              <strong>Note:</strong> All required fields must be filled in. Rows with blank cells will be rejected.
+              Barcodes that already exist in the database will also be rejected — delete the existing entry first if you need to re-upload.
+            </div>
           </div>
         </div>
       </Card>

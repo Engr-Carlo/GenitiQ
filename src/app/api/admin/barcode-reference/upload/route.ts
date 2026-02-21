@@ -63,9 +63,15 @@ export async function POST(req: NextRequest) {
         rowData[h] = row[idx];
       });
 
-      // Validate
-      if (!rowData.partNumber || !rowData.barcode) {
-        errors.push({ row: i + 1, error: "partNumber and barcode are required" });
+      // ── Blank cell check (all required fields) ──────────────────────
+      const blankFields: string[] = [];
+      for (const field of requiredHeaders) {
+        if (!rowData[field] || !rowData[field].trim()) {
+          blankFields.push(field);
+        }
+      }
+      if (blankFields.length > 0) {
+        errors.push({ row: i + 1, error: `Blank required field(s): ${blankFields.join(", ")}` });
         continue;
       }
 
@@ -105,23 +111,22 @@ export async function POST(req: NextRequest) {
       // Parse productionMachine — optional, free text with known-brand validation
       let productionMachine: string | undefined;
       if (rowData.productionMachine && rowData.productionMachine.trim()) {
-        // Normalise capitalisation: "micron" -> "Micron"
         const input = rowData.productionMachine.trim();
         const matched = VALID_PRODUCTION_MACHINES.find(
           (b) => b.toLowerCase() === input.toLowerCase()
         );
-        // Accept known brands (normalised) or unknown brands as-is (fallback speed 0.50)
         productionMachine = matched ?? input;
       }
 
       data.push({
-        partNumber: rowData.partNumber,
-        barcode: rowData.barcode,
+        partNumber: rowData.partNumber.trim(),
+        barcode: rowData.barcode.trim(),
         estimatedTime,
         deadline,
         quantity,
         machineId,
         productionMachine,
+        row: i + 1,
       });
     }
 
@@ -133,7 +138,30 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // Upsert to database
+    // ── Duplicate barcode check against DB ───────────────────────────
+    const incomingBarcodes = data.map((d) => d.barcode);
+    const existingInDb = await prisma.partReference.findMany({
+      where: { barcode: { in: incomingBarcodes } },
+      select: { barcode: true },
+    });
+    const existingBarcodeSet = new Set(existingInDb.map((e) => e.barcode));
+
+    const duplicateErrors = data
+      .filter((d) => existingBarcodeSet.has(d.barcode))
+      .map((d) => ({
+        row: d.row,
+        error: `Barcode '${d.barcode}' already exists in the database. Delete it first or use a different barcode.`,
+      }));
+
+    if (duplicateErrors.length > 0) {
+      return NextResponse.json({
+        error: `${duplicateErrors.length} barcode(s) already exist in the database`,
+        errors: duplicateErrors,
+        validRowsCount: data.length - duplicateErrors.length,
+      }, { status: 409 });
+    }
+
+    // ── Insert new records ────────────────────────────────────────────
     const results = {
       created: 0,
       updated: 0,
@@ -142,18 +170,8 @@ export async function POST(req: NextRequest) {
 
     for (const item of data) {
       try {
-        await prisma.partReference.upsert({
-          where: { barcode: item.barcode },
-          update: {
-            partNumber: item.partNumber,
-            estimatedTime: item.estimatedTime,
-            deadline: item.deadline,
-            quantity: item.quantity,
-            machineId: item.machineId ?? null,
-            productionMachine: item.productionMachine ?? null,
-            uploadedById: session.user.id,
-          } as any,
-          create: {
+        await prisma.partReference.create({
+          data: {
             partNumber: item.partNumber,
             barcode: item.barcode,
             estimatedTime: item.estimatedTime,
@@ -164,18 +182,7 @@ export async function POST(req: NextRequest) {
             uploadedById: session.user.id,
           } as any,
         });
-
-        // Check if it was an update or create by checking if barcode existed
-        const existing = await prisma.partReference.findUnique({
-          where: { barcode: item.barcode },
-          select: { createdAt: true, updatedAt: true },
-        });
-
-        if (existing && existing.createdAt.getTime() !== existing.updatedAt.getTime()) {
-          results.updated++;
-        } else {
-          results.created++;
-        }
+        results.created++;
       } catch (error: any) {
         results.errors.push({
           barcode: item.barcode,
