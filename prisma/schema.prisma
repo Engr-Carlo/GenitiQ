@@ -232,18 +232,23 @@ model ShutdownEvent {
 }
 
 model GAConfiguration {
-  id                String   @id @default(cuid())
-  populationSize    Int      @default(50)
-  generations       Int      @default(100)
-  crossoverRate     Float    @default(0.8)
-  mutationRate      Float    @default(0.15)
-  elitismCount      Int      @default(2)
-  waitTimeWeight    Float    @default(0.4)
-  utilizationWeight Float    @default(0.3)
-  priorityWeight    Float    @default(0.3)
-  isActive          Boolean  @default(true)
-  updatedById       String?
-  updatedBy         User?    @relation("GAConfigUpdater", fields: [updatedById], references: [id])
-  updatedAt         DateTime @updatedAt
-  createdAt         DateTime @default(now())
+  id                     String   @id @default(cuid())
+  populationSize         Int      @default(50)
+  generations            Int      @default(100)
+  crossoverRate          Float    @default(0.8)
+  mutationRate           Float    @default(0.15)
+  elitismCount           Int      @default(2)
+  waitTimeWeight         Float    @default(0.4)
+  utilizationWeight      Float    @default(0.3)
+  priorityWeight         Float    @default(0.3)
+  // Priority classification thresholds
+  highFitnessThreshold   Float    @default(70)
+  highHoursThreshold     Float    @default(24)
+  mediumFitnessThreshold Float    @default(45)
+  mediumHoursThreshold   Float    @default(72)
+  isActive               Boolean  @default(true)
+  updatedById            String?
+  updatedBy              User?    @relation("GAConfigUpdater", fields: [updatedById], references: [id])
+  updatedAt              DateTime @updatedAt
+  createdAt              DateTime @default(now())
 }

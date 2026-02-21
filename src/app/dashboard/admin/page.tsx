@@ -1,6 +1,6 @@
  "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Card, DataTable, Badge, KPICard, LoadingSpinner, Button } from "@/components/ui";
@@ -94,6 +94,7 @@ export default function AdminDashboardPage() {
   const [partReferences, setPartReferences] = useState<PartReferenceItem[]>([]);
   const [allProcessedParts, setAllProcessedParts] = useState<ProcessedPart[]>([]);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
+  const sessionStartRef = useRef<number>(Date.now());
 
   if (session?.user?.role !== "ADMIN") {
     redirect("/dashboard");
@@ -515,7 +516,7 @@ export default function AdminDashboardPage() {
           <h2 className="text-lg font-black uppercase tracking-wide text-gray-900 flex items-center gap-2">
             <Package size={22} className="text-primary-600" />
             Part Reference Table
-            <Badge variant="info" className="ml-2">{partReferences.length} pending</Badge>
+            <Badge variant="info" className="ml-2">{partReferences.filter(r => new Date(r.createdAt).getTime() >= sessionStartRef.current).length} pending</Badge>
           </h2>
           <Button
             variant="outline"
@@ -532,7 +533,7 @@ export default function AdminDashboardPage() {
         <p className="text-sm text-gray-500 mb-3">
           Parts awaiting operator scan. Fill the CSV template and upload to add new parts.
         </p>
-        <DataTable columns={partRefColumns} data={partReferences} emptyMessage="No pending parts. Download the CSV template, fill it in, and upload to add parts." />
+        <DataTable columns={partRefColumns} data={partReferences.filter(r => new Date(r.createdAt).getTime() >= sessionStartRef.current)} emptyMessage="No pending parts. Download the CSV template, fill it in, and upload to add parts." />
       </div>
 
       {/* Processed & Inspected Parts Summary Table */}

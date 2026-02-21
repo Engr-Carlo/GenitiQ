@@ -97,9 +97,9 @@ function nextGeneration(pop: Chromosome[], target: Genes) {
 function weightedFitness(genes: Genes) {
   return Math.round(genes.reduce((s, g, i) => s + g * WEIGHTS[i], 0));
 }
-function priorityFromFitness(f: number, h: number): "HIGH" | "MEDIUM" | "LOW" {
-  if (f > 70 || h < 24) return "HIGH";
-  if (f > 45 || h < 72) return "MEDIUM";
+function priorityFromFitness(f: number, h: number, thr = { highF: 70, highH: 24, medF: 45, medH: 72 }): "HIGH" | "MEDIUM" | "LOW" {
+  if (f > thr.highF || h < thr.highH) return "HIGH";
+  if (f > thr.medF  || h < thr.medH)  return "MEDIUM";
   return "LOW";
 }
 
@@ -173,8 +173,23 @@ export default function OperatorDashboardPage() {
   const [gaDialogOpen, setGaDialogOpen] = useState(false);
   const gaTimerRef                      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualInputRef                  = useRef<HTMLInputElement>(null);
+  const gaThresholdsRef                 = useRef({ highF: 70, highH: 24, medF: 45, medH: 72 });
 
-  // Clean up GA timer on unmount
+  // Fetch GA thresholds configured by admin
+  useEffect(() => {
+    fetch("/api/ga-config")
+      .then(r => r.json())
+      .then(d => {
+        if (d.data) {
+          gaThresholdsRef.current = {
+            highF: d.data.highFitnessThreshold   ?? 70,
+            highH: d.data.highHoursThreshold     ?? 24,
+            medF:  d.data.mediumFitnessThreshold  ?? 45,
+            medH:  d.data.mediumHoursThreshold    ?? 72,
+          };
+        }
+      }).catch(() => {});
+  }, []);
   useEffect(() => { return () => { if (gaTimerRef.current) clearTimeout(gaTimerRef.current); }; }, []);
 
   // Run the real Genetic Algorithm â€” animates 30 generations at 90ms each
@@ -229,12 +244,12 @@ export default function OperatorDashboardPage() {
         totalMutations, totalCrossovers,
         lastMutated: mutationCount > 0,
         converged: isLast,
-        priority: isLast ? priorityFromFitness(weightedFitness(target), hoursToDeadline) : null,
+        priority: isLast ? priorityFromFitness(weightedFitness(target), hoursToDeadline, gaThresholdsRef.current) : null,
         target, hoursToDeadline,
       });
 
       if (isLast) {
-        setPriority(priorityFromFitness(weightedFitness(target), hoursToDeadline));
+        setPriority(priorityFromFitness(weightedFitness(target), hoursToDeadline, gaThresholdsRef.current));
         gaTimerRef.current = setTimeout(() => setGaDialogOpen(false), 2500);
       } else {
         gaTimerRef.current = setTimeout(tick, 300);

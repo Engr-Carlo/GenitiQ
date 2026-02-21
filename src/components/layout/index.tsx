@@ -23,6 +23,7 @@ import {
   X,
   Cpu,
   ListChecks,
+  SlidersHorizontal,
 } from "lucide-react";
 
 // ============================================================
@@ -120,6 +121,12 @@ const NAV_ITEMS: NavItem[] = [
         label: "Machine Reports",
         href: "/dashboard/settings/machine-reports",
         icon: <Monitor size={18} />,
+        roles: [UserRole.ADMIN],
+      },
+      {
+        label: "GA Calibration",
+        href: "/dashboard/settings/ga-calibration",
+        icon: <SlidersHorizontal size={18} />,
         roles: [UserRole.ADMIN],
       },
     ],
@@ -392,6 +399,7 @@ const SETTINGS_ITEMS = [
   { label: "Machine Inspectors", href: "/dashboard/settings/machine-inspectors", icon: <Users size={18} /> },
   { label: "Audit Logs", href: "/dashboard/settings/audit-logs", icon: <FileText size={18} /> },
   { label: "Machine Reports", href: "/dashboard/settings/machine-reports", icon: <Monitor size={18} /> },
+  { label: "GA Calibration", href: "/dashboard/settings/ga-calibration", icon: <SlidersHorizontal size={18} /> },
 ];
 
 export function SettingsSidebar() {
