@@ -122,6 +122,7 @@ model PartReference {
   deadline      DateTime
   quantity              Int     @default(1)
   productionMachine     String? // "Micron" | "Brother" | "Okuma" | null
+  machineType           String? // "VMM" | "CMM" — set at upload, machine assigned later by GA
   position              Int     @default(0)
   priority              String?
 

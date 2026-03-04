@@ -78,20 +78,51 @@ export async function POST(
     }
   }
 
+  // If shutdown requested, redistribute PENDING parts to other same-type machines
+  let redistributedCount = 0;
+  if (requestShutdown) {
+    const pendingParts = await prisma.partReference.findMany({
+      where: { machineId, status: "PENDING" },
+    });
+
+    if (pendingParts.length > 0) {
+      const sameTypeMachines = await prisma.machine.findMany({
+        where: {
+          type: machine.type,
+          id: { not: machineId },
+          status: { notIn: ["SHUTDOWN", "MAINTENANCE"] },
+        },
+      });
+
+      if (sameTypeMachines.length > 0) {
+        const updates = pendingParts.map((part, idx) => {
+          const targetMachine = sameTypeMachines[idx % sameTypeMachines.length];
+          return prisma.partReference.update({
+            where: { id: part.id },
+            data: { machineId: targetMachine.id },
+          });
+        });
+        await Promise.all(updates);
+        redistributedCount = pendingParts.length;
+      }
+    }
+  }
+
   // Create audit log
   await prisma.auditLog.create({
     data: {
       userId: session.user.id,
       action: requestShutdown ? "REQUEST_MACHINE_SHUTDOWN" : "REPORT_MACHINE_ISSUE",
-      details: `Reported issue for ${machine.name}: ${reason}`,
+      details: `Reported issue for ${machine.name}: ${reason}${redistributedCount > 0 ? `. Redistributed ${redistributedCount} pending part(s) to other machines.` : ""}`,
     },
   });
 
   return NextResponse.json({
     success: true,
     report,
+    redistributedCount,
     message: requestShutdown
-      ? "Machine has been shut down and reported to admin"
+      ? `Machine has been shut down and reported to admin${redistributedCount > 0 ? `. ${redistributedCount} pending part(s) redistributed.` : ""}`
       : "Issue reported successfully",
   });
 }

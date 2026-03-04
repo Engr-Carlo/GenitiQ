@@ -46,6 +46,7 @@ interface PartReferenceItem {
   deadline: string;
   quantity: number;
   status: string;
+  machineType?: string | null;
   machine?: { id: string; name: string; type: string; status: string } | null;
   inspector?: { id: string; name: string; email: string } | null;
   uploadedBy: { id: string; name: string; email: string };
@@ -94,7 +95,7 @@ export default function AdminDashboardPage() {
   const [partReferences, setPartReferences] = useState<PartReferenceItem[]>([]);
   const [allProcessedParts, setAllProcessedParts] = useState<ProcessedPart[]>([]);
   const [downloadingCsv, setDownloadingCsv] = useState(false);
-  const sessionStartRef = useRef<number>(Date.now());
+  const sessionStartRef = useRef<number>(Date.now() - 30 * 60 * 1000);
 
   if (session?.user?.role !== "ADMIN") {
     redirect("/dashboard");
@@ -337,10 +338,13 @@ export default function AdminDashboardPage() {
     { key: "quantity", header: "Qty", render: (item: PartReferenceItem) => <span className="font-bold">{item.quantity}</span> },
     {
       key: "machine",
-      header: "Machine",
-      render: (item: PartReferenceItem) => item.machine
-        ? <Badge variant={item.machine.type === "VMM" ? "info" : "warning"}>{item.machine.name}</Badge>
-        : <span className="text-gray-400">—</span>,
+      header: "Machine Type",
+      render: (item: PartReferenceItem) => {
+        const type = item.machineType || item.machine?.type;
+        return type
+          ? <Badge variant={type === "VMM" ? "info" : "warning"}>{type}</Badge>
+          : <span className="text-gray-400">—</span>;
+      },
     },
     {
       key: "inspector",
@@ -450,6 +454,30 @@ export default function AdminDashboardPage() {
       header: "Insp. Time Out",
       render: (item: ProcessedPart) =>
         item.inspectorTimeOut ? new Date(item.inspectorTimeOut).toLocaleTimeString() : "—",
+    },
+    {
+      key: "queueTime",
+      header: "Queue Time",
+      render: (item: ProcessedPart) => {
+        if (!item.operatorTimeOut || !item.inspectorTimeIn) return "—";
+        const ms = new Date(item.inspectorTimeIn).getTime() - new Date(item.operatorTimeOut).getTime();
+        if (ms < 0) return "—";
+        const mins = Math.floor(ms / 60000);
+        const secs = Math.floor((ms % 60000) / 1000);
+        return <span className="font-mono text-sm">{mins}m {secs}s</span>;
+      },
+    },
+    {
+      key: "processingTime",
+      header: "Processing Time",
+      render: (item: ProcessedPart) => {
+        if (!item.inspectorTimeIn || !item.inspectorTimeOut) return "—";
+        const ms = new Date(item.inspectorTimeOut).getTime() - new Date(item.inspectorTimeIn).getTime();
+        if (ms < 0) return "—";
+        const mins = Math.floor(ms / 60000);
+        const secs = Math.floor((ms % 60000) / 1000);
+        return <span className="font-mono text-sm">{mins}m {secs}s</span>;
+      },
     },
   ];
 

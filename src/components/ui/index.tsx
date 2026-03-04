@@ -252,6 +252,10 @@ interface TableProps<T> {
   data: T[];
   emptyMessage?: string;
   onRowClick?: (item: T) => void;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onSelectionChange?: (ids: Set<string>) => void;
+  idKey?: string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -259,12 +263,47 @@ export function DataTable<T extends Record<string, any>>({
   data,
   emptyMessage = "No data available",
   onRowClick,
+  selectable = false,
+  selectedIds = new Set(),
+  onSelectionChange,
+  idKey = "id",
 }: TableProps<T>) {
+  const allSelected = data.length > 0 && data.every((item) => selectedIds.has(item[idKey]));
+  const someSelected = data.some((item) => selectedIds.has(item[idKey])) && !allSelected;
+
+  const toggleAll = () => {
+    if (!onSelectionChange) return;
+    if (allSelected) {
+      onSelectionChange(new Set());
+    } else {
+      onSelectionChange(new Set(data.map((item) => item[idKey])));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    if (!onSelectionChange) return;
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    onSelectionChange(next);
+  };
+
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-200">
       <table className="w-full">
         <thead>
           <tr className="bg-primary-800">
+            {selectable && (
+              <th className="w-10 px-3 py-3 text-center">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                  onChange={toggleAll}
+                  className="h-4 w-4 rounded border-gray-300 accent-primary-600"
+                />
+              </th>
+            )}
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -281,7 +320,7 @@ export function DataTable<T extends Record<string, any>>({
         <tbody className="divide-y divide-gray-100">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-4 py-12 text-center text-gray-400">
+              <td colSpan={columns.length + (selectable ? 1 : 0)} className="px-4 py-12 text-center text-gray-400">
                 {emptyMessage}
               </td>
             </tr>
@@ -291,10 +330,21 @@ export function DataTable<T extends Record<string, any>>({
                 key={idx}
                 className={cn(
                   "hover:bg-gray-50 transition-colors",
-                  onRowClick && "cursor-pointer"
+                  onRowClick && "cursor-pointer",
+                  selectable && selectedIds.has(item[idKey]) && "bg-primary-50"
                 )}
                 onClick={() => onRowClick?.(item)}
               >
+                {selectable && (
+                  <td className="w-10 px-3 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(item[idKey])}
+                      onChange={() => toggleOne(item[idKey])}
+                      className="h-4 w-4 rounded border-gray-300 accent-primary-600"
+                    />
+                  </td>
+                )}
                 {columns.map((col) => (
                   <td key={col.key} className={cn("px-4 py-3 text-sm text-gray-700", col.className)}>
                     {col.render ? col.render(item) : item[col.key]}

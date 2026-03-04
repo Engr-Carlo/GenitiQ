@@ -35,9 +35,10 @@ export async function POST(req: NextRequest) {
     // Parse CSV
     const header = lines[0].split(",").map((h) => h.trim());
     const requiredHeaders = ["partNumber", "barcode", "estimatedTime", "deadline", "quantity"];
-    const optionalHeaders = ["machine", "productionMachine"];
+    const optionalHeaders = ["machineType", "productionMachine"];
 
     const VALID_PRODUCTION_MACHINES = ["Micron", "Brother", "Okuma"];
+    const VALID_MACHINE_TYPES = ["VMM", "CMM"];
 
     const missingHeaders = requiredHeaders.filter((h) => !header.includes(h));
     if (missingHeaders.length > 0) {
@@ -94,18 +95,15 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      // Validate machine if provided
-      let machineId: string | undefined;
-      if (rowData.machine && rowData.machine.trim()) {
-        const machine = await prisma.machine.findUnique({
-          where: { name: rowData.machine.trim() },
-          select: { id: true },
-        });
-        if (!machine) {
-          errors.push({ row: i + 1, error: `Machine '${rowData.machine}' not found` });
+      // Validate machineType if provided (VMM or CMM)
+      let machineType: string | undefined;
+      if (rowData.machineType && rowData.machineType.trim()) {
+        const mt = rowData.machineType.trim().toUpperCase();
+        if (!VALID_MACHINE_TYPES.includes(mt)) {
+          errors.push({ row: i + 1, error: `Invalid machineType '${rowData.machineType}'. Must be VMM or CMM.` });
           continue;
         }
-        machineId = machine.id;
+        machineType = mt;
       }
 
       // Parse productionMachine — optional, free text with known-brand validation
@@ -124,7 +122,7 @@ export async function POST(req: NextRequest) {
         estimatedTime,
         deadline,
         quantity,
-        machineId,
+        machineType,
         productionMachine,
         row: i + 1,
       });
@@ -177,7 +175,7 @@ export async function POST(req: NextRequest) {
             estimatedTime: item.estimatedTime,
             deadline: item.deadline,
             quantity: item.quantity,
-            machineId: item.machineId ?? null,
+            machineType: item.machineType ?? null,
             productionMachine: item.productionMachine ?? null,
             uploadedById: session.user.id,
           } as any,

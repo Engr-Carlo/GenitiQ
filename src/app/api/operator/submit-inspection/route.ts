@@ -51,12 +51,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Machine type validation: if part has a machineType, operator's session machine must match
+    const partMachineType = ref.machineType;
+    if (partMachineType && machineSession) {
+      const sessionMachine = await prisma.machine.findUnique({ where: { id: machineSession.machineId } });
+      if (sessionMachine && sessionMachine.type !== partMachineType) {
+        return NextResponse.json(
+          { error: `This part requires a ${partMachineType} machine, but you are checked into ${sessionMachine.name} (${sessionMachine.type}).` },
+          { status: 400 }
+        );
+      }
+    }
+
     const operatorTimeIn = new Date(timeIn);
     const operatorTimeOut = new Date();
     // Store in SECONDS for sub-minute accuracy
     const operatorActualTime = Math.round((operatorTimeOut.getTime() - operatorTimeIn.getTime()) / 1000);
 
     // Update PartReference with operator fields — no separate Inspection record
+    // Also assign machineId from operator's session if not already set
     const updated = await prisma.partReference.update({
       where: { id: partRefId },
       data: {
@@ -68,6 +81,7 @@ export async function POST(req: NextRequest) {
         operatorActualTime,
         operatorNotes: notes || null,
         machineSessionId: machineSession?.id ?? null,
+        machineId: machineSession?.machineId ?? ref.machineId ?? null,
       },
       include: {
         machine: { select: { name: true } },

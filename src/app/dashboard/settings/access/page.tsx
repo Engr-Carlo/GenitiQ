@@ -166,7 +166,7 @@ export default function ManageAccessPage() {
   };
 
   const handleDeactivate = async (userId: string, userName: string) => {
-    if (!confirm(`Deactivate ${userName}?`)) return;
+    if (!confirm(`Permanently delete user ${userName}? This action cannot be undone.`)) return;
 
     try {
       const res = await fetch(`/api/users/${userId}`, {
@@ -176,10 +176,10 @@ export default function ManageAccessPage() {
       if (res.ok) {
         fetchUsers();
       } else {
-        alert("Failed to deactivate user");
+        alert("Failed to delete user");
       }
     } catch (error) {
-      alert("Failed to deactivate user");
+      alert("Failed to delete user");
     }
   };
 
@@ -308,7 +308,7 @@ export default function ManageAccessPage() {
                       className="text-danger-600 hover:text-danger-700"
                       onClick={() => handleDeactivate(user.id, user.name)}
                     >
-                      Deactivate
+                      Delete
                     </Button>
                   </div>
                 </div>
@@ -373,7 +373,7 @@ export default function ManageAccessPage() {
                       className="text-danger-600 hover:text-danger-700"
                       onClick={() => handleDeactivate(user.id, user.name)}
                     >
-                      Deactivate
+                      Delete
                     </Button>
                   </div>
                 </div>

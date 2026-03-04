@@ -52,10 +52,10 @@ export async function GET(req: NextRequest) {
   // If download=template, return CSV template
   if (download === "template") {
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine,productionMachine",
-      "PN1001,1000001001,45,2026-12-31,1,VMM-1,Micron",
-      "PN1002,1000001002,30,2026-12-30,1,VMM-2,Brother",
-      "PN1003,1000001003,60,2027-01-15,1,CMM-1,Okuma",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machineType,productionMachine",
+      "PN1001,1000001001,45,2026-12-31,1,VMM,Micron",
+      "PN1002,1000001002,30,2026-12-30,1,VMM,Brother",
+      "PN1003,1000001003,60,2027-01-15,1,CMM,Okuma",
     ].join("\n");
 
     return new NextResponse(csv, {
@@ -74,13 +74,13 @@ export async function GET(req: NextRequest) {
       r.estimatedTime,
       r.deadline.toISOString().split("T")[0],
       r.quantity,
-      r.machine?.name || "",
+      r.machineType || r.machine?.type || "",
       r.inspector?.email || "",
       r.productionMachine || "",
     ].join(","));
 
     const csv = [
-      "partNumber,barcode,estimatedTime,deadline,quantity,machine,inspector,productionMachine",
+      "partNumber,barcode,estimatedTime,deadline,quantity,machineType,inspector,productionMachine",
       ...rows,
     ].join("\n");
 
@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
 }
 
 // DELETE /api/admin/barcode-reference — Delete barcode reference(s)
+// Supports single delete via query params OR bulk delete via JSON body { ids: string[] }
 export async function DELETE(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -111,6 +112,29 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden - Admin only" }, { status: 403 });
   }
 
+  // Try bulk delete from body first
+  try {
+    const body = await req.json().catch(() => null);
+    if (body?.ids && Array.isArray(body.ids) && body.ids.length > 0) {
+      const result = await prisma.partReference.deleteMany({
+        where: { id: { in: body.ids } },
+      });
+
+      await prisma.auditLog.create({
+        data: {
+          userId: session.user.id,
+          action: "BULK_DELETE_BARCODE_REFERENCE",
+          details: `Bulk deleted ${result.count} barcode reference(s)`,
+        },
+      });
+
+      return NextResponse.json({ success: true, message: `${result.count} reference(s) deleted`, count: result.count });
+    }
+  } catch {
+    // Fall through to single delete
+  }
+
+  // Single delete via query params
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   const barcode = searchParams.get("barcode");

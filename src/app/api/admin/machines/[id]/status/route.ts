@@ -56,16 +56,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       data: { status },
     });
 
+    // If shutting down, redistribute PENDING parts to other same-type machines
+    let redistributedCount = 0;
+    if (status === "SHUTDOWN") {
+      const pendingParts = await prisma.partReference.findMany({
+        where: { machineId, status: "PENDING" },
+      });
+
+      if (pendingParts.length > 0) {
+        const sameTypeMachines = await prisma.machine.findMany({
+          where: {
+            type: machine.type,
+            id: { not: machineId },
+            status: { notIn: ["SHUTDOWN", "MAINTENANCE"] },
+          },
+        });
+
+        if (sameTypeMachines.length > 0) {
+          const updates = pendingParts.map((part, idx) => {
+            const targetMachine = sameTypeMachines[idx % sameTypeMachines.length];
+            return prisma.partReference.update({
+              where: { id: part.id },
+              data: { machineId: targetMachine.id },
+            });
+          });
+          await Promise.all(updates);
+          redistributedCount = pendingParts.length;
+        }
+      }
+    }
+
     // Create audit log
     await prisma.auditLog.create({
       data: {
         userId: session.user.id,
         action: "UPDATE_MACHINE_STATUS",
-        details: `Changed machine ${machine.name} status from ${machine.status} to ${status}`,
+        details: `Changed machine ${machine.name} status from ${machine.status} to ${status}${redistributedCount > 0 ? `. Redistributed ${redistributedCount} pending part(s) to other machines.` : ""}`,
       },
     });
 
-    return NextResponse.json({ data: updatedMachine });
+    return NextResponse.json({ data: updatedMachine, redistributedCount });
   } catch (error: any) {
     console.error("Failed to update machine status:", error);
     return NextResponse.json({ error: error.message || "Update failed" }, { status: 500 });

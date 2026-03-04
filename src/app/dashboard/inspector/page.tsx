@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Card, Button, Badge, DataTable, KPICard, Modal, LoadingSpinner } from "@/components/ui";
+import { Card, Button, Badge, DataTable, KPICard, Modal, LoadingSpinner, ConfirmDialog } from "@/components/ui";
 import { formatDuration, exportToCsv } from "@/lib/utils";
 import { DefectRateTrendChart, YieldTrendChart } from "@/components/charts";
 import {
@@ -155,6 +155,7 @@ export default function InspectorDashboardPage() {
   const [reviewStartedAt, setReviewStartedAt] = useState<Date | null>(null);
   const [justification, setJustification] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [confirmReview, setConfirmReview] = useState<InspectionForReview | null>(null);
 
   // KPIs
   const [kpis, setKpis] = useState({
@@ -496,10 +497,22 @@ export default function InspectorDashboardPage() {
       },
     },
     {
+      key: "queueTime",
+      header: "Queue Time",
+      render: (item: InspectionForReview) => {
+        if (!item.operatorCompletedAt) return "-";
+        const start = new Date(item.operatorCompletedAt).getTime();
+        const end = item.inspectionStartedAt ? new Date(item.inspectionStartedAt).getTime() : Date.now();
+        const mins = Math.floor((end - start) / 60000);
+        const secs = Math.floor(((end - start) % 60000) / 1000);
+        return <span className="font-mono text-sm">{mins}m {secs}s</span>;
+      },
+    },
+    {
       key: "action",
       header: "Action",
       render: (item: InspectionForReview) => (
-        <Button size="sm" variant="primary" icon={<Eye size={14} />} onClick={() => handleStartReview(item)}>
+        <Button size="sm" variant="primary" icon={<Eye size={14} />} onClick={() => setConfirmReview(item)}>
           Review
         </Button>
       ),
@@ -596,6 +609,30 @@ export default function InspectorDashboardPage() {
       header: "Insp. Time Out",
       render: (item: InspectionForReview) =>
         item.inspectionCompletedAt ? new Date(item.inspectionCompletedAt).toLocaleTimeString() : "-",
+    },
+    {
+      key: "queueTime",
+      header: "Queue Time",
+      render: (item: InspectionForReview) => {
+        if (!item.operatorCompletedAt || !item.inspectionStartedAt) return "-";
+        const ms = new Date(item.inspectionStartedAt).getTime() - new Date(item.operatorCompletedAt).getTime();
+        if (ms < 0) return "-";
+        const mins = Math.floor(ms / 60000);
+        const secs = Math.floor((ms % 60000) / 1000);
+        return <span className="font-mono text-sm">{mins}m {secs}s</span>;
+      },
+    },
+    {
+      key: "processingTime",
+      header: "Processing Time",
+      render: (item: InspectionForReview) => {
+        if (!item.inspectionStartedAt || !item.inspectionCompletedAt) return "-";
+        const ms = new Date(item.inspectionCompletedAt).getTime() - new Date(item.inspectionStartedAt).getTime();
+        if (ms < 0) return "-";
+        const mins = Math.floor(ms / 60000);
+        const secs = Math.floor((ms % 60000) / 1000);
+        return <span className="font-mono text-sm">{mins}m {secs}s</span>;
+      },
     },
   ];
 
@@ -1089,6 +1126,22 @@ export default function InspectorDashboardPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ==================== Review Confirmation ==================== */}
+      <ConfirmDialog
+        isOpen={!!confirmReview}
+        onClose={() => setConfirmReview(null)}
+        onConfirm={() => {
+          if (confirmReview) {
+            handleStartReview(confirmReview);
+            setConfirmReview(null);
+          }
+        }}
+        title="Start Review"
+        message={`Once you start reviewing part ${confirmReview?.partNumber || ""}, you cannot back out until you submit a decision. Do you want to proceed?`}
+        confirmText="Yes, Start Review"
+        variant="primary"
+      />
 
       {/* ==================== Review Modal ==================== */}
       <Modal

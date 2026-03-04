@@ -14,6 +14,7 @@ interface BarcodeReference {
   deadline: string;
   quantity: number;
   productionMachine?: string | null;
+  machineType?: string | null;
   machine?: { 
     id: string; 
     name: string; 
@@ -34,6 +35,8 @@ export default function BarcodeReferencePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<any>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") redirect("/login");
@@ -128,6 +131,32 @@ export default function BarcodeReferencePage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} selected barcode reference(s)?`)) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/admin/barcode-reference", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+
+      if (res.ok) {
+        setSelectedIds(new Set());
+        fetchReferences();
+      } else {
+        alert("Failed to delete references");
+      }
+    } catch (error) {
+      console.error("Failed to bulk delete:", error);
+      alert("Failed to delete references");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const downloadTemplate = () => {
     window.location.href = "/api/admin/barcode-reference?download=template";
   };
@@ -172,18 +201,16 @@ export default function BarcodeReferencePage() {
     },
     {
       key: "machine",
-      header: "Machine",
-      render: (item: BarcodeReference) => (
-        item.machine ? (
-          <div className="flex items-center gap-2">
-            <Badge variant={item.machine.status === "ACTIVE" ? "success" : "warning"}>
-              {item.machine.name}
-            </Badge>
-          </div>
-        ) : (
-          <span className="text-gray-400 text-sm italic">Not assigned</span>
-        )
-      ),
+      header: "Machine Type",
+      render: (item: BarcodeReference) => {
+        const type = item.machineType || item.machine?.type;
+        if (!type) return <span className="text-gray-400 text-sm italic">Not set</span>;
+        return (
+          <Badge variant={type === "VMM" ? "info" : "warning"}>
+            {type}
+          </Badge>
+        );
+      },
     },
     {
       key: "inspector",
@@ -335,13 +362,13 @@ export default function BarcodeReferencePage() {
           <div className="bg-gray-50 p-4 rounded-lg text-sm">
             <p className="font-bold mb-2">CSV Format Requirements:</p>
             <ul className="list-disc list-inside space-y-1 text-gray-700">
-              <li>Headers: <code className="bg-white px-1">partNumber,barcode,estimatedTime,deadline,quantity,machine,productionMachine</code></li>
-              <li>partNumber: Part number (e.g., PN10001)</li>
-              <li>barcode: Unique barcode identifier (e.g., BC-10001-A001)</li>
-              <li>estimatedTime: Estimated inspection time in minutes (e.g., 4)</li>
-              <li>deadline: ISO date format (e.g., 2026-02-25)</li>
-              <li>quantity: Quantity for this barcode (e.g., 1)</li>
-              <li>machine: Testing machine name (e.g., VMM-1) — optional</li>
+              <li>Headers: <code className="bg-white px-1">partNumber,barcode,estimatedTime,deadline,quantity,machineType,productionMachine</code></li>
+                <li>partNumber: Part number (e.g., PN10001)</li>
+                <li>barcode: Unique barcode identifier (e.g., BC-10001-A001)</li>
+                <li>estimatedTime: Estimated inspection time in minutes (e.g., 4)</li>
+                <li>deadline: ISO date format (e.g., 2026-02-25)</li>
+                <li>quantity: Quantity for this barcode (e.g., 1)</li>
+                <li>machineType: Machine type — <strong>VMM</strong> or <strong>CMM</strong> (optional, specific machine assigned later by GA)</li>
               <li>productionMachine: Brand of production machine that made the part — <strong>Micron</strong>, <strong>Brother</strong>, or <strong>Okuma</strong> (optional, affects GA priority)</li>
             </ul>
             <div className="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-xs">
@@ -355,17 +382,39 @@ export default function BarcodeReferencePage() {
       {/* References Table */}
       <Card>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-black">Current References ({references.length})</h2>
+          <h2 className="text-lg font-black">Recent References — Last 30 Minutes ({(() => { const cutoff = Date.now() - 30 * 60 * 1000; return references.filter(r => new Date(r.createdAt).getTime() >= cutoff).length; })()})</h2>
+          {selectedIds.size > 0 && (
+            <Button
+              variant="danger"
+              size="sm"
+              icon={<Trash2 size={16} />}
+              onClick={handleBulkDelete}
+              loading={deleting}
+            >
+              Delete Selected ({selectedIds.size})
+            </Button>
+          )}
         </div>
-        {references.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <FileText size={48} className="mx-auto mb-3 text-gray-300" />
-            <p className="font-bold">No barcode references uploaded yet</p>
-            <p className="text-sm mt-1">Upload a CSV file to get started</p>
-          </div>
-        ) : (
-          <DataTable columns={columns} data={references} />
-        )}
+        {(() => {
+          const cutoff = Date.now() - 30 * 60 * 1000;
+          const recentRefs = references.filter(r => new Date(r.createdAt).getTime() >= cutoff);
+          return recentRefs.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <FileText size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="font-bold">No barcode references from the last 30 minutes</p>
+              <p className="text-sm mt-1">Upload a CSV file to get started</p>
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={recentRefs}
+              selectable
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+              idKey="id"
+            />
+          );
+        })()}
       </Card>
     </div>
   );
