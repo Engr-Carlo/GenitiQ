@@ -276,15 +276,13 @@ export default function OperatorDashboardPage() {
     if (!barcode.trim()) { setError("Please enter a barcode"); return; }
     setLoading(true); setError(null); setScannedReference(null); setGaState(null); setPriority(null);
     try {
-      const res  = await fetch(`/api/admin/barcode-reference?barcode=${encodeURIComponent(barcode)}`);
+      // This endpoint runs the server-side GA, assigns the specific machine
+      // (vmm1/vmm2/vmm3 or cmm1/cmm2) and returns the part with machine data.
+      const res  = await fetch(`/api/operator/scan-barcode?barcode=${encodeURIComponent(barcode)}`);
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Barcode not found"); return; }
-      if (!data.data || data.data.length === 0) { setError("Barcode not found in system. Please contact admin."); return; }
-      const reference = data.data[0];
-      if (reference.status !== "PENDING" && reference.status !== "RE_INSPECT") {
-        setError(`This part (${reference.partNumber}) is already scanned (status: ${reference.status}). Contact inspector if re-work is needed.`);
-        return;
-      }
+      if (!data.data) { setError("Barcode not found in system. Please contact admin."); return; }
+      const reference = data.data;
       setScannedReference(reference);
       setTimeIn(new Date().toISOString());
       runGA(reference);

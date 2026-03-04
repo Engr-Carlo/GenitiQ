@@ -3,7 +3,6 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { UserRole } from "@/types";
-import { runGAOptimization } from "@/lib/ga";
 
 // POST /api/admin/barcode-reference/upload — Upload CSV with barcode references
 export async function POST(req: NextRequest) {
@@ -198,15 +197,6 @@ export async function POST(req: NextRequest) {
         details: `Uploaded ${data.length} barcode references: ${results.created} created, ${results.updated} updated`,
       },
     });
-
-    // Fire-and-forget GA optimisation for each machine type present in the upload.
-    // This assigns specific machines (vmm1/vmm2/vmm3 or cmm1/cmm2) to the new parts.
-    const uploadedTypes = [...new Set(data.map((d) => d.machineType).filter(Boolean))] as ("VMM" | "CMM")[];
-    for (const mt of uploadedTypes) {
-      runGAOptimization(mt).catch((e) =>
-        console.error(`[GA] Post-upload optimisation failed for ${mt}:`, e)
-      );
-    }
 
     return NextResponse.json({
       success: true,
