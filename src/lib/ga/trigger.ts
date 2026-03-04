@@ -43,11 +43,16 @@ export async function runGAOptimization(
     select: { id: true, name: true, status: true, currentSessionId: true },
   });
 
-  // 2. Fetch unscanned PartReferences for this machine type
+  // 2. Fetch unscanned PartReferences for this machine type.
+  //    Match parts that EITHER already have a machineId pointing to a machine of this
+  //    type OR are freshly uploaded (machineId = null) but have the machineType scalar set.
   const pendingRefs = await prisma.partReference.findMany({
     where: {
-      machine: { type: machineType },
       status: "PENDING",
+      OR: [
+        { machine: { type: machineType } },
+        { machineId: null, machineType: machineType },
+      ],
     },
     select: {
       id: true,

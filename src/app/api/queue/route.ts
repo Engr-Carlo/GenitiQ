@@ -14,7 +14,14 @@ export async function GET(req: NextRequest) {
 
   const where: any = {};
   if (machineId) where.machineId = machineId;
-  if (machineType) where.machine = { type: machineType };
+  if (machineType) {
+    // Include parts already assigned to a machine of this type AND
+    // freshly-uploaded parts (no machineId yet) whose machineType scalar matches.
+    where.OR = [
+      { machine: { type: machineType } },
+      { machineId: null, machineType: machineType },
+    ];
+  }
   if (scanned === "true") where.status = { not: "PENDING" };
   else if (scanned === "false" || scanned === null) where.status = "PENDING";
 

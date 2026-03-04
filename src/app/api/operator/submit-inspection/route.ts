@@ -98,8 +98,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Fire-and-forget GA re-optimisation so remaining PENDING parts re-rank immediately
-    // with updated priorities (deadline, quantity, production machine speed, estimated time)
-    const machineType = ref.machine?.type as "VMM" | "CMM" | undefined;
+    // with updated priorities (deadline, quantity, production machine speed, estimated time).
+    // Use assigned machine's type first, fall back to the PartReference machineType scalar.
+    const machineType = (ref.machine?.type || (ref as any).machineType) as "VMM" | "CMM" | undefined;
     if (machineType) {
       runGAOptimization(machineType).catch((e) =>
         console.error("[GA] Re-optimisation failed after operator submit:", e)
