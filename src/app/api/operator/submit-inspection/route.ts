@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     // Find PartReference
     const ref = await prisma.partReference.findUnique({
       where: { id: partRefId },
-      include: { machine: true, inspector: true },
+      include: { machine: { select: { name: true, type: true } }, inspector: { select: { name: true } } },
     });
 
     if (!ref) {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Machine type validation: if part has a machineType, operator's session machine must match
-    const partMachineType = ref.machineType;
+    const partMachineType = (ref as any)?.machineType as string | null;
     if (partMachineType && machineSession) {
       const sessionMachine = await prisma.machine.findUnique({ where: { id: machineSession.machineId } });
       if (sessionMachine && sessionMachine.type !== partMachineType) {
