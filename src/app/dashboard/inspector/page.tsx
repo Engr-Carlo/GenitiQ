@@ -1146,12 +1146,20 @@ export default function InspectorDashboardPage() {
       {/* ==================== Review Modal ==================== */}
       <Modal
         isOpen={reviewModal.open}
-        onClose={() => { setReviewModal({ open: false, inspection: null }); setReviewStartedAt(null); }}
+        onClose={() => {}}
         title="QA Inspection Review"
         size="lg"
       >
         {reviewModal.inspection && (
           <div className="space-y-4">
+            {/* Lock notice */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-300">
+              <Shield size={14} className="text-amber-600 shrink-0" />
+              <p className="text-xs font-bold text-amber-800">
+                Review in progress — you must submit a decision (Approved / Rework / Scrap) to exit.
+              </p>
+            </div>
+
             {/* Header with timer */}
             <div className="flex items-center justify-between">
               <h4 className="text-lg font-black text-gray-900">
