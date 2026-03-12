@@ -213,7 +213,7 @@ export default function InspectorDashboardPage() {
 
       // Sort by priority (HIGH → MEDIUM → LOW) then by createdAt ascending (first come first serve)
       const PRIORITY_RANK: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 };
-      formattedReview.sort((a, b) => {
+      formattedReview.sort((a: InspectionForReview, b: InspectionForReview) => {
         const rankDiff = (PRIORITY_RANK[b.priority ?? ""] ?? 0) - (PRIORITY_RANK[a.priority ?? ""] ?? 0);
         if (rankDiff !== 0) return rankDiff;
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
