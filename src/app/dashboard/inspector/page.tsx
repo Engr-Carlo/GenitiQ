@@ -210,6 +210,15 @@ export default function InspectorDashboardPage() {
         priority: item.priority ?? null,
       });
       const formattedReview = (reviewData.data || []).map(mapInspection);
+
+      // Sort by priority (HIGH → MEDIUM → LOW) then by createdAt ascending (first come first serve)
+      const PRIORITY_RANK: Record<string, number> = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+      formattedReview.sort((a, b) => {
+        const rankDiff = (PRIORITY_RANK[b.priority ?? ""] ?? 0) - (PRIORITY_RANK[a.priority ?? ""] ?? 0);
+        if (rankDiff !== 0) return rankDiff;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+
       setReviewItems(formattedReview);
 
       // Fetch all inspections
